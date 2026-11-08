@@ -13,6 +13,30 @@ enum ColorMode: String, Codable, CaseIterable, Identifiable {
     var id: Self { self }
 }
 
+enum FullscreenBehavior: String, Codable, CaseIterable, Identifiable {
+    case unchanged = "保持原样", hide = "淡出隐藏", edge = "贴边显示"
+    var id: Self { self }
+}
+
+enum ScreenEdge: String, Codable, CaseIterable, Identifiable {
+    case top = "上", bottom = "下", left = "左", right = "右"
+    var id: Self { self }
+
+    /// 沿所选屏幕边缘居中，尺寸限制在该屏幕内。
+    func windowFrame(size: CGSize, in screen: CGRect) -> CGRect {
+        let width = min(size.width, screen.width), height = min(size.height, screen.height)
+        // 与 AppKit 的窗口整点对齐规则一致，避免居中产生半点偏差。
+        var frame = CGRect(x: floor(screen.midX - width / 2), y: floor(screen.midY - height / 2), width: width, height: height)
+        switch self {
+        case .top: frame.origin.y = screen.maxY - height
+        case .bottom: frame.origin.y = screen.minY
+        case .left: frame.origin.x = screen.minX
+        case .right: frame.origin.x = screen.maxX - width
+        }
+        return frame
+    }
+}
+
 enum Preset: String, Codable, CaseIterable, Identifiable {
     case aurora = "北极光", dusk = "落日", amber = "琥珀", lagoon = "薄荷海", silver = "月光"
     var id: Self { self }
@@ -68,6 +92,16 @@ struct Preferences: Codable, Equatable {
     private var savedFollowDock: Bool?
     private var savedHideWhenSilent: Bool?
     private var savedCornerRadius: Double?
+    private var savedFullscreenBehavior: FullscreenBehavior?
+    private var savedFullscreenEdge: ScreenEdge?
+    var fullscreenBehavior: FullscreenBehavior {
+        get { savedFullscreenBehavior ?? .unchanged }
+        set { savedFullscreenBehavior = newValue }
+    }
+    var fullscreenEdge: ScreenEdge {
+        get { savedFullscreenEdge ?? .bottom }
+        set { savedFullscreenEdge = newValue }
+    }
     var cornerRadius: Double {
         get { min(Self.maximumCornerRadius, max(0, savedCornerRadius ?? 12)) }
         set { savedCornerRadius = newValue }

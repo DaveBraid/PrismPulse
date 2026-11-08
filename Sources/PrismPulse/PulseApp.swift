@@ -9,7 +9,9 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         didSet {
             guard oldValue != prefs, overlay != nil else { return }
             if persists { prefs.save() }
-            if oldValue.followsDock != prefs.followsDock || oldValue.placement != prefs.placement {
+            updateFullscreenPlacement()
+            if oldValue.followsDock != prefs.followsDock || oldValue.placement != prefs.placement ||
+               oldValue.fullscreenBehavior != prefs.fullscreenBehavior {
                 updateDockTracking()
             }
             if oldValue.dockHeight != prefs.dockHeight { alignOverlay() }
@@ -23,6 +25,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
     @Published private(set) var audioNote = "正在准备系统音频"
     @Published private(set) var actualMenuWidth = Int(StatusBarPreferences.widthDefault)
     @Published private(set) var artwork = ArtworkUpdate.waiting
+    @Published private(set) var palette: SpectrumPalette
     @Published var demo: Bool {
         didSet {
             guard demo != oldValue, overlay != nil else { return }
@@ -40,11 +43,15 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
     private var captureRevision = 0
     private static let freeWindowMinimum = CGSize(width: 150, height: 48)
     private static let freeWindowMaximum = CGSize(width: 1400, height: 680)
-    private var overlay: NSPanel!
+    private var overlay: SpectrumPanel!
     private var plot: SpectrumCanvas!
     private var freeWindowFrame = CGRect.zero
     private var dockAnchor: DockAlignment.Anchor?
     private var dockTimer: Timer?
+    private var fullscreenScreen: NSScreen?
+    private var fullscreenRestoreFrame: CGRect?
+    private var presentationObserver: NSKeyValueObservation?
+    private var fullscreenRefresh: DispatchWorkItem?
     private var statusItem: NSStatusItem!
     private var menuPlot: SpectrumCanvas!
     private var menuLength: StatusBarLength!
@@ -59,6 +66,10 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
     private static let silenceDelay = 1.4 // 低于音频阈值持续这些秒后才淡出。
     private var overlayWantsToShow = false
     private var overlayFade = 0.0         // 0…1，实际不透明度还要乘上用户设置。
+    private var paletteFrom: SpectrumPalette?
+    private var paletteTarget: SpectrumPalette
+    private var paletteStarted = 0.0
+    private static let paletteDuration = 0.65 // 秒，封面配色切换的缓动时间。
     private var routeRestart: DispatchWorkItem?
     private var frameSave: DispatchWorkItem?
     private var quitReplied = false
@@ -74,11 +85,12 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         self.smoke = smoke
         self.smokeDirectory = smokeDirectory
         persists = !demo && !smoke
-        prefs = persists ? Preferences.load() : Preferences()
+        let initial = persists ? Preferences.load() : Preferences()
+        prefs = initial
+        palette = initial.palette(artwork: nil)
+        paletteTarget = initial.palette(artwork: nil)
         super.init()
     }
-
-    var palette: SpectrumPalette { prefs.palette(artwork: artwork.palette) }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showSettings()
@@ -104,6 +116,10 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         for name in [NSWindow.didMoveNotification, NSWindow.didChangeOcclusionStateNotification, NSWindow.didChangeScreenNotification] {
             events.addObserver(self, selector: #selector(surfaceWindowChanged(_:)), name: name, object: nil)
         }
+        presentationObserver = NSApp.observe(\.currentSystemPresentationOptions, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor [weak self] in self?.refreshFullscreenContext() }
+        }
+        refreshFullscreenContext()
         if persists {
             capture.watchOutput { [weak self] in self?.outputChanged() }
         }
@@ -120,7 +136,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
     /// 初始化无焦点浮窗及原生菜单栏按钮，两处读取同一份频谱帧。
     private func makeSurfaces() {
         freeWindowFrame = Self.initialFrame(saved: persists)
-        overlay = NSPanel(contentRect: freeWindowFrame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        overlay = SpectrumPanel(contentRect: freeWindowFrame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         overlay.minSize = Self.freeWindowMinimum
         overlay.maxSize = Self.freeWindowMaximum
         overlay.isOpaque = false
@@ -165,8 +181,9 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
 
     /// 应用交互和外观设置；只在显示模式实际切换时重新排序窗口。
     private func applyAppearance() {
-        overlay.level = prefs.onTop ? .floating : .normal
-        overlay.collectionBehavior = prefs.onTop ? [.canJoinAllSpaces, .fullScreenAuxiliary] : [.moveToActiveSpace]
+        let floats = prefs.onTop || fullscreenRestoreFrame != nil
+        overlay.level = floats ? .floating : .normal
+        overlay.collectionBehavior = floats ? [.canJoinAllSpaces, .fullScreenAuxiliary] : [.moveToActiveSpace]
         overlay.hasShadow = prefs.backdrop
         updateOverlayVisibility(now: ProcessInfo.processInfo.systemUptime)
         if let button = statusItem.button, let menuPlot {
@@ -179,7 +196,59 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         applyPalette()
     }
 
-    @objc private func menuLayoutContextChanged() { menuLength.refresh() }
+    @objc private func menuLayoutContextChanged() {
+        menuLength.refresh()
+        refreshFullscreenContext()
+        // Space 通知可能早于切屏动画结束，合并事件后再确认一次。
+        fullscreenRefresh?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.refreshFullscreenContext() }
+        fullscreenRefresh = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
+    }
+
+    /// 显示器的全屏空间改变时更新浮窗，不在绘图循环里轮询。
+    private func refreshFullscreenContext() {
+        guard !quitting else { return }
+        let candidate = overlay.screen ?? NSScreen.main
+        let screen = candidate.flatMap { FullscreenContext.isFullscreen(on: $0) ? $0 : nil }
+        updateFullscreenContext(screen)
+    }
+
+    private func updateFullscreenContext(_ screen: NSScreen?) {
+        guard screen?.frame != fullscreenScreen?.frame else { return }
+        fullscreenScreen = screen
+        updateFullscreenPlacement()
+        applyAppearance()
+        updateDockTracking()
+        tuneClock()
+    }
+
+    /// 贴边位置只在全屏期间生效，退出时恢复浮窗并交还 Dock 跟随。
+    private func updateFullscreenPlacement() {
+        let frame: CGRect
+        let pinning = fullscreenScreen != nil && prefs.fullscreenBehavior == .edge && prefs.placement.showsWindow
+        overlay.pinsToScreenEdge = pinning
+        if pinning, let screen = fullscreenScreen {
+            if fullscreenRestoreFrame == nil { fullscreenRestoreFrame = overlay.frame }
+            var size = fullscreenRestoreFrame!.size
+            if prefs.followsDock { size.height = dockedHeight }
+            frame = prefs.fullscreenEdge.windowFrame(size: size, in: screen.frame)
+            plot.pinnedToScreenEdge = true
+            plot.attachedToDock = false
+        } else if let original = fullscreenRestoreFrame {
+            frame = NSScreen.screens.contains { $0.frame.intersects(original) } ? original : Self.initialFrame(saved: false)
+            plot.pinnedToScreenEdge = false
+            plot.attachedToDock = prefs.followsDock && dockAnchor != nil
+        } else {
+            return
+        }
+        overlay.minSize = CGSize(width: min(Self.freeWindowMinimum.width, frame.width),
+                                 height: min(Self.freeWindowMinimum.height, frame.height))
+        overlay.maxSize = CGSize(width: max(Self.freeWindowMaximum.width, frame.width),
+                                 height: max(Self.freeWindowMaximum.height, frame.height))
+        if overlay.frame != frame { overlay.setFrame(frame, display: overlay.isVisible) }
+        if !pinning { fullscreenRestoreFrame = nil }
+    }
 
     /// 屏幕模式或刷新率改变后重读显示配置。
     @objc private func screensChanged() {
@@ -193,6 +262,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         guard let window = notification.object as? NSWindow else { return }
         let isMenuWindow = window === statusItem.button?.window
         if isMenuWindow { menuLength.layoutChanged() }
+        if window === overlay, notification.name == NSWindow.didChangeScreenNotification { refreshFullscreenContext() }
         guard prefs.fps == Preferences.screenFPS, isMenuWindow || window === overlay,
               notification.name != NSWindow.didMoveNotification else { return }
         tuneClock()
@@ -200,9 +270,35 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
     }
 
     private func applyPalette() {
-        let palette = palette
+        let target = prefs.palette(artwork: artwork.palette)
+        if target != paletteTarget {
+            if prefs.colorMode == .artwork {
+                let now = ProcessInfo.processInfo.systemUptime
+                advancePalette(at: now)
+                paletteFrom = palette
+                paletteStarted = now
+            } else {
+                paletteFrom = nil
+                palette = target
+            }
+            paletteTarget = target
+        }
         plot?.apply(prefs, palette: palette)
         menuPlot?.apply(prefs, palette: palette)
+        tuneClock()
+    }
+
+    /// 从当前已显示的颜色重新起步，切歌或重复取色不会闪回旧配色。
+    @discardableResult
+    private func advancePalette(at now: TimeInterval) -> Bool {
+        guard let from = paletteFrom else { return false }
+        let progress = min(1, max(0, (now - paletteStarted) / Self.paletteDuration))
+        let eased = progress * progress * (3 - 2 * progress)
+        palette = from.blended(to: paletteTarget, progress: eased)
+        plot?.setPalette(palette)
+        menuPlot?.setPalette(palette)
+        if progress >= 1 { paletteFrom = nil }
+        return true
     }
 
     /// 切换实时音频、暂停和演示。修订号防止旧的启动结果覆盖新状态。
@@ -244,12 +340,11 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         let wasShowing = overlayWantsToShow
         let previousFade = overlayFade
         overlayWantsToShow = prefs.placement.showsWindow &&
+            !(fullscreenScreen != nil && prefs.fullscreenBehavior == .hide) &&
             (!prefs.hidesWhenSilent || demo || heardRecently(at: now))
 
         if !prefs.placement.showsWindow {
             overlayFade = 0
-        } else if demo || !prefs.hidesWhenSilent {
-            overlayFade = 1
         } else if wasShowing == overlayWantsToShow, let elapsed {
             // 开始或反转时从当前亮度起步，静音时钟的长间隔不会跳过淡入。
             let duration = overlayWantsToShow ? 0.18 : 0.36 // 秒，声音回来时更快淡入。
@@ -274,7 +369,8 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         guard !quitting else { return }
         let now = ProcessInfo.processInfo.systemUptime
         let fading = overlayFade != (overlayWantsToShow ? 1 : 0)
-        let animating = demo || fading || (pcm != nil && heardRecently(at: now))
+        let hasSurface = overlayWantsToShow || overlayFade > 0 || prefs.placement.showsMenu
+        let animating = fading || paletteFrom != nil || (hasSurface && (demo || (pcm != nil && heardRecently(at: now))))
         let followsScreen = prefs.fps == Preferences.screenFPS
         if animating, followsScreen, let window = visibleSurfaceWindow() {
             guard displayClockWindow !== window else { return }
@@ -351,6 +447,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
             if audioNote != note { audioNote = note }
             dirty = result.changed
         }
+        if advancePalette(at: now) { dirty = true }
         updateOverlayVisibility(now: now, elapsed: dt)
         if dirty && overlay.isVisible { plot.needsDisplay = true }
         if prefs.placement.showsMenu, menuPlot != nil {
@@ -390,6 +487,11 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
 
     /// 只在贴 Dock 的浮窗显示时跟踪边界，频谱绘图不会触发位置查询。
     private func updateDockTracking() {
+        if fullscreenRestoreFrame != nil {
+            dockTimer?.invalidate()
+            dockTimer = nil
+            return
+        }
         guard prefs.followsDock, prefs.placement.showsWindow, overlay.isVisible else {
             dockTimer?.invalidate()
             dockTimer = nil
@@ -425,7 +527,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
     private var dockedHeight: CGFloat { prefs.dockHeight ?? freeWindowFrame.height }
 
     private func alignOverlay() {
-        guard let dockAnchor else { return }
+        guard fullscreenRestoreFrame == nil, let dockAnchor else { return }
         let frame = dockAnchor.windowFrame(height: dockedHeight)
         if !plot.attachedToDock { plot.attachedToDock = true }
         if overlay.frame == frame { return }
@@ -456,9 +558,18 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         guard let screen = overlay.screen ?? NSScreen.main else { return }
         let bounds = screen.visibleFrame.insetBy(dx: 8, dy: 8)
         let width = min(size.width, bounds.width), height = min(size.height, bounds.height)
-        let x = max(bounds.minX, min(bounds.maxX - width, overlay.frame.maxX - width))
-        let y = max(bounds.minY, min(bounds.maxY - height, overlay.frame.minY))
-        overlay.setFrame(CGRect(x: x, y: y, width: width, height: height), display: true)
+        let source = fullscreenRestoreFrame ?? overlay.frame
+        let x = max(bounds.minX, min(bounds.maxX - width, source.maxX - width))
+        let y = max(bounds.minY, min(bounds.maxY - height, source.minY))
+        let frame = CGRect(x: x, y: y, width: width, height: height)
+        if fullscreenRestoreFrame != nil {
+            fullscreenRestoreFrame = frame
+            freeWindowFrame = frame
+            updateFullscreenPlacement()
+            saveFrame()
+        } else {
+            overlay.setFrame(frame, display: true)
+        }
     }
 
     func windowDidMove(_ notification: Notification) { rememberFreeWindowFrame() }
@@ -466,7 +577,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
 
     /// 自动贴合产生的移动和缩放不覆盖用户上次摆放的窗口。
     private func rememberFreeWindowFrame() {
-        guard dockAnchor == nil else { return }
+        guard dockAnchor == nil, fullscreenRestoreFrame == nil else { return }
         freeWindowFrame = overlay.frame
         guard persists else { return }
         frameSave?.cancel()
@@ -559,6 +670,8 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         if quitting { return .terminateCancel }
         quitting = true
         stopClock()
+        presentationObserver?.invalidate()
+        fullscreenRefresh?.cancel()
         dockTimer?.invalidate()
         menuLength.stop()
         NotificationCenter.default.removeObserver(self)
@@ -592,6 +705,8 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         else { fputs("UI smoke: window preferences failed\n", stderr); exit(1) }
         await checkDockAlignment()
         checkWaveCorners()
+        await checkFullscreenBehavior()
+        await checkPaletteFade()
         await checkScreenFrameRate()
         await checkIdleFade()
         prefs.placement = .menu
@@ -699,6 +814,103 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
             try? rounded.representation(using: .png, properties: [:])?.write(to: url)
         }
         print("UI smoke: four waveform corners rounded with the backdrop off")
+    }
+
+    /// 验证全屏策略不覆盖手动位置，并能恢复 Dock 跟随。
+    private func checkFullscreenBehavior() async {
+        guard let screen = overlay.screen else { exit(1) }
+        let oldPrefs = prefs
+        let original = overlay.frame, free = freeWindowFrame
+        let legacy = try? JSONDecoder().decode(Preferences.self, from: JSONEncoder().encode(Preferences()))
+        guard legacy?.fullscreenBehavior == .unchanged, legacy?.fullscreenEdge == .bottom else { exit(1) }
+        prefs.hidesWhenSilent = false
+        prefs.fullscreenBehavior = .hide
+        updateFullscreenContext(screen)
+        try? await Task.sleep(for: .milliseconds(180))
+        guard overlay.isVisible, overlay.alphaValue > 0, overlay.alphaValue < prefs.opacity else {
+            fputs("UI smoke: fullscreen hide did not fade\n", stderr); exit(1)
+        }
+        try? await Task.sleep(for: .milliseconds(300))
+        guard !overlay.isVisible, clockRate == 0 else {
+            fputs("UI smoke: fullscreen hide did not settle\n", stderr); exit(1)
+        }
+        prefs.fullscreenBehavior = .edge
+        prefs.onTop = false
+        for edge in ScreenEdge.allCases {
+            prefs.fullscreenEdge = edge
+            let expected = edge.windowFrame(size: original.size, in: screen.frame)
+            guard overlay.frame == expected, overlay.level == .floating, dockTimer == nil,
+                  plot.pinnedToScreenEdge, freeWindowFrame == free else {
+                fputs("UI smoke: fullscreen edge \(edge.rawValue) failed, actual \(overlay.frame), expected \(expected), level \(overlay.level.rawValue), pinned \(plot.pinnedToScreenEdge), free \(freeWindowFrame) / \(free)\n", stderr); exit(1)
+            }
+        }
+        let resized = CGSize(width: 300, height: 82)
+        resizeWindow(resized)
+        guard overlay.frame == prefs.fullscreenEdge.windowFrame(size: resized, in: screen.frame) else {
+            fputs("UI smoke: resized fullscreen window lost its edge\n", stderr); exit(1)
+        }
+        resizeWindow(original.size)
+        if let directory = smokeDirectory {
+            let view = NSHostingView(rootView: SettingsView(model: self))
+            view.frame = CGRect(origin: .zero, size: view.fittingSize)
+            view.layoutSubtreeIfNeeded()
+            if let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                view.cacheDisplay(in: view.bounds, to: bitmap)
+                let file = URL(fileURLWithPath: directory).appendingPathComponent("fullscreen-settings.png")
+                try? bitmap.representation(using: .png, properties: [:])?.write(to: file)
+            }
+        }
+        updateFullscreenContext(nil)
+        try? await Task.sleep(for: .milliseconds(250))
+        guard overlay.frame == original, fullscreenRestoreFrame == nil,
+              !plot.pinnedToScreenEdge, overlay.level == .normal, overlay.isVisible else {
+            fputs("UI smoke: fullscreen restoration failed\n", stderr); exit(1)
+        }
+        prefs.followsDock = true
+        if dockAnchor != nil {
+            let docked = overlay.frame
+            updateFullscreenContext(screen)
+            updateFullscreenContext(nil)
+            guard overlay.frame == docked, plot.attachedToDock, dockTimer != nil, freeWindowFrame == free else {
+                fputs("UI smoke: fullscreen did not restore Dock tracking\n", stderr); exit(1)
+            }
+        }
+        prefs = oldPrefs
+        print("UI smoke: fullscreen fade, four edges, saved settings and Dock restoration passed")
+    }
+
+    /// 暂停音频后仍能完成配色过渡，切歌时从当前颜色续接。
+    private func checkPaletteFade() async {
+        let oldPrefs = prefs, oldArtwork = artwork
+        let oldDemo = demo
+        prefs.capture = false
+        prefs.hidesWhenSilent = false
+        demo = false
+        let initial = palette
+        artwork = ArtworkUpdate(palette: .dusk, note: "演示封面")
+        applyPalette()
+        guard palette == initial, paletteTarget == .dusk else { exit(1) }
+        try? await Task.sleep(for: .milliseconds(180))
+        guard palette != initial, palette != .dusk, paletteFrom != nil else {
+            fputs("UI smoke: artwork palette did not interpolate\n", stderr); exit(1)
+        }
+        artwork = ArtworkUpdate(palette: .lagoon, note: "下一张演示封面")
+        applyPalette()
+        guard paletteFrom == palette, palette != .dusk else {
+            fputs("UI smoke: palette retarget jumped to the old cover\n", stderr); exit(1)
+        }
+        try? await Task.sleep(for: .milliseconds(780))
+        guard palette == .lagoon, paletteFrom == nil, clockRate == 0 else {
+            fputs("UI smoke: palette fade did not finish while audio was paused\n", stderr); exit(1)
+        }
+        prefs.colorMode = .solid
+        guard palette == SpectrumPalette([prefs.firstColor]), paletteFrom == nil else { exit(1) }
+        artwork = oldArtwork
+        demo = oldDemo
+        prefs = oldPrefs
+        applyPalette()
+        try? await Task.sleep(for: .milliseconds(780))
+        print("UI smoke: palette fade, interruption continuity and paused-audio completion passed")
     }
 
     /// 在可用屏幕上检查最大帧率请求和真实回调，使用独立的演示窗口。

@@ -13,9 +13,10 @@ PrismPulse is a live system audio visualizer for macOS. Let your music, videos, 
 ## Features
 
 - **Follow the Dock.** Keep the spectrum centered just above the bottom Dock. It follows the Dock's width and leaves room for its rounded corners. Set the height and corner radius separately. Pick the wave style (「涌浪」) and turn off the dark backdrop for a transparent wave that meets the top of the Dock.
-- **Extract colors from artwork.** PrismPulse blends colors from the current album cover or video thumbnail by default. It can read artwork from Music, Spotify, Tabbit, Chrome, and Safari. Choose a fallback palette, a single color, or a custom two-color gradient.
+- **Extract colors from artwork.** PrismPulse blends colors from the current album cover or video thumbnail by default. Colors transition smoothly from the fallback palette and between covers. It can read artwork from Music, Spotify, Tabbit, Chrome, and Safari. Choose a fallback palette, a single color, or a custom two-color gradient.
 - **14 spectrum styles.** Choose from bars, beads, waves, and rings. The floating window supports always on top, click-through, opacity, and drag resizing. The menu bar spectrum supports adjustable width, automatic fit, and a fully transparent background.
 - **Fade out in silence.** The window fades away when playback goes quiet and fades in when sound returns. Choose a fixed frame rate or follow the current display. Audio checks slow down when idle.
+- **Make room for full-screen apps.** Under 「悬浮窗 → 应用全屏时」 in settings, choose to fade out or center the window along the top, bottom, left, or right screen edge. Its previous position and Dock alignment return afterward. The default keeps the current behavior. Detection follows the native full-screen Space on the visualizer's display.
 
 <details>
 <summary>See all 14 styles</summary>
@@ -57,7 +58,7 @@ open build/PrismPulse.app
 
 Run `swift run -c release SpectrumCheck` for the core checks. The floating window and menu bar share spectrum data computed with Accelerate vDSP. The UI uses AppKit, Core Graphics, and SwiftUI.
 
-Implementation references include [Apple Core Audio Taps](https://developer.apple.com/documentation/coreaudio/capturing-system-audio-with-core-audio-taps), [AudioCap](https://github.com/insidegui/AudioCap), and [Nowsee](https://github.com/Sergio-prog/Nowsee).
+Implementation references include [Apple Core Audio Taps](https://developer.apple.com/documentation/coreaudio/capturing-system-audio-with-core-audio-taps), [AudioCap](https://github.com/insidegui/AudioCap), [Nowsee](https://github.com/Sergio-prog/Nowsee), and [Hammerspoon's Space queries](https://github.com/Hammerspoon/hammerspoon/blob/master/extensions/spaces/libspaces.m). Full-screen detection uses a private, read-only Space layout API with an AppKit presentation-state fallback. macOS updates may affect detection.
 
 ## License
 

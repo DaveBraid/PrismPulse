@@ -144,6 +144,21 @@ struct SettingsView: View {
                     Spacer()
                 }.toggleStyle(.checkbox)
                 HStack(spacing: 11) {
+                    Text("应用全屏时").foregroundStyle(.secondary)
+                    Picker("应用全屏时", selection: $model.prefs.fullscreenBehavior) {
+                        ForEach(FullscreenBehavior.allCases) { Text($0.rawValue).tag($0) }
+                    }.pickerStyle(.segmented).labelsHidden()
+                }
+                if model.prefs.fullscreenBehavior == .edge {
+                    HStack(spacing: 11) {
+                        Text("贴边方向").foregroundStyle(.secondary)
+                        Picker("贴边方向", selection: $model.prefs.fullscreenEdge) {
+                            ForEach(ScreenEdge.allCases) { Text($0.rawValue).tag($0) }
+                        }.pickerStyle(.segmented).labelsHidden()
+                        Text("退出全屏后恢复").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                HStack(spacing: 11) {
                     Text("不透明度").foregroundStyle(.secondary)
                     Slider(value: $model.prefs.opacity, in: 0.12...1) { Text("窗口不透明度") }.labelsHidden()
                     Text("\(Int((model.prefs.opacity * 100).rounded()))%")

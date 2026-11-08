@@ -1,6 +1,15 @@
 import AppKit
 import SpectrumCore
 
+final class SpectrumPanel: NSPanel {
+    var pinsToScreenEdge = false
+
+    /// 全屏贴边允许贴到物理屏幕顶部，避免系统自动向下避让菜单栏。
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        pinsToScreenEdge ? frameRect : super.constrainFrameRect(frameRect, to: screen)
+    }
+}
+
 final class SpectrumCanvas: NSView {
     enum Surface { case window, status, preview }
     private static let panelInk = CGColor(srgbRed: 0.046, green: 0.061, blue: 0.094, alpha: 0.88)
@@ -11,6 +20,7 @@ final class SpectrumCanvas: NSView {
     private let surface: Surface
     private var prefs = Preferences()
     private var resizeStart: (CGRect, CGPoint)?
+    var pinnedToScreenEdge = false
     var attachedToDock = false {
         didSet {
             guard oldValue != attachedToDock else { return }
@@ -34,9 +44,12 @@ final class SpectrumCanvas: NSView {
     /// 输入显示设置与当前有效调色板，刷新画布。
     func apply(_ prefs: Preferences, palette: SpectrumPalette) {
         self.prefs = prefs
-        painter.setPalette(palette)
+        setPalette(palette)
         needsDisplay = true
     }
+
+    /// 更新配色，重绘由两处频谱共用的时钟统一安排。
+    func setPalette(_ palette: SpectrumPalette) { painter.setPalette(palette) }
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
@@ -75,7 +88,7 @@ final class SpectrumCanvas: NSView {
         }
         painter.draw(frameData, in: context, rect: plot, style: prefs.style,
                      vertical: prefs.vertical, compact: compact, cornerRadius: radius)
-        if surface == .window && !attachedToDock && !prefs.clickThrough && prefs.backdrop {
+        if surface == .window && !attachedToDock && !pinnedToScreenEdge && !prefs.clickThrough && prefs.backdrop {
             context.setStrokeColor(Self.panelEdge)
             context.setLineWidth(1)
             context.setLineCap(.round)
@@ -92,7 +105,7 @@ final class SpectrumCanvas: NSView {
 
     /// 鼠标按下：右下角开始缩放，其余区域拖动整块浮窗。
     override func mouseDown(with event: NSEvent) {
-        guard surface == .window, !attachedToDock, let window else { return }
+        guard surface == .window, !attachedToDock, !pinnedToScreenEdge, let window else { return }
         let p = convert(event.locationInWindow, from: nil)
         if p.x >= bounds.maxX - 25 && p.y <= 24 {
             resizeStart = (window.frame, NSEvent.mouseLocation)

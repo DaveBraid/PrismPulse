@@ -11,7 +11,8 @@ struct SpectrumTests {
         try checks.testStreamingWrapAndSilenceSettles()
         try checks.testHighRefreshBetweenAudioBatches()
         try checks.testArtworkPalette()
-        print("Core checks: frequency tracking, ring wrap, silence, high-refresh interpolation and artwork palette passed")
+        try checks.testPaletteBlending()
+        print("Core checks: frequency tracking, ring wrap, silence, high-refresh interpolation, artwork palette and palette blending passed")
     }
 
     private enum Failure: Error { case assertion(String, UInt) }
@@ -103,6 +104,20 @@ struct SpectrumTests {
         let gray = try png(RGB(hex: 0x303030), RGB(hex: 0xB5B5B5))
         try expect(SpectrumPalette.artwork(gray) == .silver)
         try expect(SpectrumPalette.artwork(Data([1, 2, 3])) == nil)
+    }
+
+    /// 混合不同色标数量，验证单色、双色和封面三色间的中间帧与端点。
+    func testPaletteBlending() throws {
+        let black = RGB(hex: 0x000000), white = RGB(hex: 0xFFFFFF)
+        let solid = SpectrumPalette([black])
+        let gradient = SpectrumPalette([black, white])
+        let midpoint = solid.blended(to: gradient, progress: 0.5)
+        try expect(midpoint.colors == [black, RGB(0.5, 0.5, 0.5)])
+        try expect(solid.blended(to: .aurora, progress: 0) == solid)
+        try expect(solid.blended(to: .aurora, progress: 1) == .aurora)
+        let neutral = SpectrumPalette([RGB(0.5, 0.5, 0.5), RGB(0.5, 0.5, 0.5), RGB(0.5, 0.5, 0.5)])
+        let three = gradient.blended(to: neutral, progress: 0.5)
+        try expect(three.colors == [RGB(0.25, 0.25, 0.25), RGB(0.5, 0.5, 0.5), RGB(0.75, 0.75, 0.75)])
     }
 
     private func png(_ first: RGB, _ last: RGB) throws -> Data {

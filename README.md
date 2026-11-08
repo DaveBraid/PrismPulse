@@ -13,9 +13,10 @@ PrismPulse 是 macOS 的实时系统音频频谱。让正在播放的音乐、�
 ## 特色功能
 
 - **跟随 Dock**。频谱居中贴在底部 Dock 上方，随 Dock 宽度伸缩，两侧给圆角留出空间。高度和圆角都能单独调。选「涌浪」并关闭「深色底板」，就能得到一条贴着 Dock 的透明彩色波形。
-- **自动提取封面颜色**。默认把当前专辑封面或视频缩略图配成渐变。可从 Music、Spotify、Tabbit、Chrome 和 Safari 取色。封面不可用时使用备用配色，也可以自己设定单色或双色渐变。
+- **自动提取封面颜色**。默认把当前专辑封面或视频缩略图配成渐变。备用配色到封面配色、换封面时都平滑过渡。可从 Music、Spotify、Tabbit、Chrome 和 Safari 取色。封面不可用时使用备用配色，也可以自己设定单色或双色渐变。
 - **14 种频谱样式**。从光柱、珠链到波形和环形。悬浮窗支持置顶、点击穿透、透明度和拖动缩放。菜单栏频谱可调长度，支持自适应铺满和全透明背景。
 - **有声时跳动，安静时淡出**。静音后浮窗自动淡出，声音回来时淡入。帧率可选固定档或「跟随屏幕」。静音时降低音频检查频率。
+- **全屏时自动避让**。在「设置 → 悬浮窗 → 应用全屏时」选择淡出隐藏，或沿屏幕上、下、左、右边缘居中显示。退出全屏后恢复原位置和 Dock 跟随。默认保持原样，按浮窗所在屏幕的原生全屏状态判断。
 
 <details>
 <summary>查看 14 种样式</summary>
@@ -55,7 +56,7 @@ open build/PrismPulse.app
 
 核心检查可用 `swift run -c release SpectrumCheck` 运行。频谱计算使用 Accelerate vDSP，悬浮窗和菜单栏共用分析结果。界面使用 AppKit、Core Graphics 和 SwiftUI。
 
-实现参考 [Apple Core Audio Taps](https://developer.apple.com/documentation/coreaudio/capturing-system-audio-with-core-audio-taps)、[AudioCap](https://github.com/insidegui/AudioCap) 和 [Nowsee](https://github.com/Sergio-prog/Nowsee)。
+实现参考 [Apple Core Audio Taps](https://developer.apple.com/documentation/coreaudio/capturing-system-audio-with-core-audio-taps)、[AudioCap](https://github.com/insidegui/AudioCap)、[Nowsee](https://github.com/Sergio-prog/Nowsee) 和 [Hammerspoon 的空间查询](https://github.com/Hammerspoon/hammerspoon/blob/master/extensions/spaces/libspaces.m)。全屏识别使用只读的非公开空间布局接口，接口不可用时退回 AppKit 的展示状态。macOS 更新可能影响识别。
 
 ## 许可证
 

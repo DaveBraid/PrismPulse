@@ -51,6 +51,30 @@ public struct SpectrumPalette: Equatable, Sendable {
     public static let lagoon = SpectrumPalette([RGB(hex: 0x30BAFF), RGB(hex: 0x44E8D4), RGB(hex: 0xC0FF7B)])
     public static let silver = SpectrumPalette([RGB(hex: 0x8295B1), RGB(hex: 0xD9E4F0), RGB(hex: 0xF7FBFF)])
 
+    /// 先按相同位置采样两组渐变，再混合颜色，兼容单色、双色和封面三色。
+    public func blended(to target: SpectrumPalette, progress: Double) -> SpectrumPalette {
+        guard progress > 0 else { return self }
+        guard progress < 1, !colors.isEmpty, !target.colors.isEmpty else { return target }
+        let count = max(colors.count, target.colors.count)
+        return SpectrumPalette((0..<count).map { i in
+            let position = Double(i) / Double(max(1, count - 1))
+            let a = sampled(at: position), b = target.sampled(at: position)
+            return RGB(a.red + (b.red - a.red) * progress,
+                       a.green + (b.green - a.green) * progress,
+                       a.blue + (b.blue - a.blue) * progress)
+        })
+    }
+
+    private func sampled(at position: Double) -> RGB {
+        let offset = position * Double(colors.count - 1)
+        let index = Int(offset)
+        let a = colors[index], b = colors[min(index + 1, colors.count - 1)]
+        let fraction = offset - Double(index)
+        return RGB(a.red + (b.red - a.red) * fraction,
+                   a.green + (b.green - a.green) * fraction,
+                   a.blue + (b.blue - a.blue) * fraction)
+    }
+
     /// 输入为原封面字节；ImageIO 缩略解码后提取两组色相，输出三段可读渐变。
     public static func artwork(_ data: Data) -> SpectrumPalette? {
         guard !data.isEmpty, data.count <= 12 * 1024 * 1024,

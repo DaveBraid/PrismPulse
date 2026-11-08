@@ -36,7 +36,13 @@ Requires **macOS 14.4 or later**. The universal download supports Apple silicon 
 
 The release is ad hoc signed and has not been notarized by Apple. If macOS blocks the first launch and you have confirmed the download came from this repository, go to **System Settings → Privacy & Security** and choose **Open Anyway** after trying to open the app. [Apple's instructions](https://support.apple.com/en-us/102445)
 
-If you use 0.7 or earlier, install the latest version manually once to enable future in-app updates. The 1.0.0 feed URL returns 504 on some networks. Users of that version should manually install 1.0.1.
+If you use 0.7 or earlier, install the latest version manually once to enable future in-app updates. Download URLs in 1.0.0 and 1.0.1 return 504 on some networks. Users of those versions should manually install 1.0.2.
+
+If browser downloads time out, use GitHub CLI.
+
+```sh
+gh release download --repo DaveBraid/PrismPulse --pattern PrismPulse-macOS.zip
+```
 
 ## Quick start
 
@@ -65,21 +71,13 @@ Implementation references include [Apple Core Audio Taps](https://developer.appl
 
 ## Publish future updates
 
-Prepare a universal arm64/x86_64 app bundle and release notes. Generate signed update assets, publish the release, then commit the signed feed to the repository so installed apps can find it.
+Commit the source, prepare a universal arm64/x86_64 app bundle and release notes, then run the following scripts. They sign the assets, publish anonymous downloads through GitHub's official asset API, and update the signed feed.
 
 ```sh
 ./Scripts/prepare-update.sh build/PrismPulse.app release-notes.md
 version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' build/PrismPulse.app/Contents/Info.plist)
 git push origin main
-gh release create "v$version" \
-  "build/releases/v$version/PrismPulse-macOS.zip" \
-  "build/releases/v$version/appcast.xml" \
-  "build/releases/v$version/SHA256SUMS" \
-  --target "$(git rev-parse HEAD)" --notes-file release-notes.md --latest
-cp "build/releases/v$version/appcast.xml" appcast.xml
-git add appcast.xml
-git commit -m "Publish signed update feed for v$version"
-git push origin main
+./Scripts/publish-update.sh "build/releases/v$version" release-notes.md
 ```
 
 Increment `CFBundleVersion` and update `CFBundleShortVersionString` for each release. The private update-signing key stays in the macOS login Keychain under `local.ethanlee.PrismPulse`. Keep that key and the app's public key for subsequent releases. The script uses Sparkle's SwiftPM tools by default. Set `SPARKLE_TOOLS_DIR` to use another tool directory.

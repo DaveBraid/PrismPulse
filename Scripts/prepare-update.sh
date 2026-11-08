@@ -27,7 +27,7 @@ trap 'rm -rf -- "$staging"' EXIT
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$app" "$staging/PrismPulse-macOS.zip"
 cp "$notes" "$staging/PrismPulse-macOS.md"
 # 签署安装包及更新信息，私钥始终由钥匙串提供。
-"$tools/generate_appcast" --account "$account" --maximum-deltas 0 --embed-release-notes \
+"$tools/generate_appcast" --account "$account" --maximum-deltas 0 --embed-release-notes --informational-update-versions '<102' \
     --download-url-prefix "https://github.com/DaveBraid/PrismPulse/releases/download/v$version/" \
     --link "https://github.com/DaveBraid/PrismPulse/releases/tag/v$version" "$staging"
 "$tools/sign_update" --account "$account" --verify "$staging/appcast.xml"

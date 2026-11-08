@@ -14,6 +14,7 @@ final class AppUpdates: ObservableObject {
     init(enabled: Bool) {
         self.enabled = enabled
         controller = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
+        controller.updater.httpHeaders = ["Accept": "application/octet-stream"] // GitHub 资产 API 的匿名二进制下载。
         if enabled {
             controller.startUpdater()
             controller.updater.publisher(for: \.canCheckForUpdates).assign(to: &$canCheck)

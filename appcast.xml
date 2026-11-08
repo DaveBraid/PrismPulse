@@ -1,16 +1,19 @@
-<?xml version="1.0" standalone="yes"?><!-- sparkle-sign-warning:
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><!-- sparkle-sign-warning:
 IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
 --><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <title>PrismPulse</title>
         <item>
-            <title>1.0.1</title>
-            <pubDate>Sun, 08 Nov 2026 18:06:20 +0800</pubDate>
-            <link>https://github.com/DaveBraid/PrismPulse/releases/tag/v1.0.1</link>
-            <sparkle:version>101</sparkle:version>
-            <sparkle:shortVersionString>1.0.1</sparkle:shortVersionString>
+            <title>1.0.2</title>
+            <pubDate>Sun, 08 Nov 2026 18:15:33 +0800</pubDate>
+            <link>https://github.com/DaveBraid/PrismPulse/releases/tag/v1.0.2</link>
+            <sparkle:informationalUpdate>
+                <sparkle:belowVersion>102</sparkle:belowVersion>
+            </sparkle:informationalUpdate>
+            <sparkle:version>102</sparkle:version>
+            <sparkle:shortVersionString>1.0.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.4</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown"><![CDATA[PrismPulse 1.0.1 · 流光频谱
+            <description sparkle:format="markdown">PrismPulse 1.0.2 · 流光频谱
 
 - 频谱严格贴住屏幕边界，去掉内部留白。顶部向下展开，左右自动旋转为纵向并朝屏幕内部展开。
 - 「贴边长度」按屏幕宽度的 10%–100% 缩放，纵向长度限制在屏幕高度内。
@@ -31,11 +34,14 @@ The app is ad hoc signed and has not been notarized by Apple. See the README for
 
 修复 GitHub 更新入口的 504 兼容性问题，签名更新信息改为通过仓库原始文件获取。
 Fix feed delivery on networks where GitHub latest/download returns 504.
-]]></description>
-            <enclosure url="https://github.com/DaveBraid/PrismPulse/releases/download/v1.0.1/PrismPulse-macOS.zip" length="2630407" type="application/octet-stream" sparkle:edSignature="27aM3p+JdDPISbedzlGTQeHgUM+4pnL1fvWwAqDSrcJPs83h/f3Y+hAjkkKjQpA8ouIl6ka05hpL14tZWg2+CA=="></enclosure>
+
+安装包通过 GitHub 官方资产 API 匿名下载，兼容网页下载地址超时的网络。
+Update archives use GitHub's public asset API to avoid browser-download gateway timeouts.
+</description>
+            <enclosure url="https://api.github.com/repos/DaveBraid/PrismPulse/releases/assets/723582676" length="2631752" type="application/octet-stream" sparkle:edSignature="xHTp96DzLG+BqClYq68d25nOeFv5hdBPEV4P4Zzs+kbw02QqJIskKb8UdM/QTalHYifUfN5pBLnW6SxumUfcDQ=="></enclosure>
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: Adsd71wWlOBTEljq6Ug9YdGaCDuXBwIALpFiWYnX3NrKMzsAv/JwRU521/aP519uGZ6NpZm+OMocnxF6p8eTAg==
-length: 2749
+edSignature: c5oV4M8vtFn+vhsESyEE+0k9uVYcgMeYE3Nxkr5ADxAmYARdjxjbZX6l/oA2LfSPIR+JvUXvU+Zq8adwQLj9Dg==
+length: 3083
 -->

@@ -36,7 +36,7 @@ PrismPulse 是 macOS 的实时系统音频频谱。让正在播放的音乐、�
 
 安装包采用临时签名，未经 Apple 公证。如果 macOS 提示无法验证，确认文件来自本仓库后，可在首次尝试打开后到「系统设置 → 隐私与安全性」选择「仍要打开」。[Apple 的打开说明](https://support.apple.com/zh-cn/102445)
 
-0.7 及更早版本需要先手动安装一次 1.0，后续版本可在应用内更新。
+0.7 及更早版本需要先手动安装一次最新版，后续版本可在应用内更新。1.0.0 的更新入口在部分网络下会返回 504，使用该版时请手动升级到 1.0.1。
 
 ## 快速上手
 
@@ -63,7 +63,7 @@ open build/PrismPulse.app
 
 ## 发布后续更新
 
-准备好包含 arm64 和 x86_64 的通用版应用及发布说明后，执行以下命令。脚本会生成签名安装包、签名更新信息和校验值，再把安装包和 `appcast.xml` 一起发布到 GitHub Release。
+准备好包含 arm64 和 x86_64 的通用版应用及发布说明后，执行以下命令。脚本会生成签名安装包、签名更新信息和校验值。先发布 Release，再把签名更新信息提交到仓库，供应用检查。
 
 ```sh
 ./Scripts/prepare-update.sh build/PrismPulse.app release-notes.md
@@ -74,6 +74,10 @@ gh release create "v$version" \
   "build/releases/v$version/appcast.xml" \
   "build/releases/v$version/SHA256SUMS" \
   --target "$(git rev-parse HEAD)" --notes-file release-notes.md --latest
+cp "build/releases/v$version/appcast.xml" appcast.xml
+git add appcast.xml
+git commit -m "Publish signed update feed for v$version"
+git push origin main
 ```
 
 发布前递增 `CFBundleVersion` 并更新 `CFBundleShortVersionString`。更新签名私钥保存在本机登录钥匙串的 `local.ethanlee.PrismPulse` 账号下，后续发布需保留同一密钥和应用公钥。脚本默认使用 SwiftPM 下载的 Sparkle 工具，也可用 `SPARKLE_TOOLS_DIR` 指定工具目录。

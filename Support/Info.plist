@@ -7,14 +7,14 @@
     <key>CFBundleDisplayName</key><string>流光频谱</string>
     <key>CFBundleExecutable</key><string>PrismPulse</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.0.0</string>
-    <key>CFBundleVersion</key><string>100</string>
+    <key>CFBundleShortVersionString</key><string>1.0.1</string>
+    <key>CFBundleVersion</key><string>101</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
     <key>LSMinimumSystemVersion</key><string>14.4</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
-    <key>SUFeedURL</key><string>https://github.com/DaveBraid/PrismPulse/releases/latest/download/appcast.xml</string>
+    <key>SUFeedURL</key><string>https://raw.githubusercontent.com/DaveBraid/PrismPulse/main/appcast.xml</string>
     <key>SUPublicEDKey</key><string>r/poni5P9jPrNxPzjxh3wyFyGOnpQyCkLcUZwK912zQ=</string>
     <key>SUEnableAutomaticChecks</key><true/>
     <key>SUScheduledCheckInterval</key><integer>86400</integer>

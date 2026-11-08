@@ -21,14 +21,14 @@ final class SpectrumPainter {
 
     /// 输入实时帧、画布与样式。菜单栏按宽度合并频带，铺满时可绘制全部 48 带。
     func draw(_ frame: SpectrumFrame, in context: CGContext, rect: CGRect, style: SpectrumStyle,
-              vertical: Bool, compact: Bool, cornerRadius: CGFloat = 0) {
+              vertical: Bool, compact: Bool, cornerRadius: CGFloat = 0, edgeAligned: Bool = false) {
         guard rect.width > 4, rect.height > 4 else { return }
         let statusStyle = style == .orbit || style == .halo ? .mirror : style
         let count = max(4, Int(rect.width / 4.25))
         if !compact || count >= frame.levels.count {
             draw(frame.levels, peaks: frame.peaks, in: context, rect: rect,
                  style: compact ? statusStyle : style, vertical: vertical,
-                 cornerRadius: compact ? 0 : cornerRadius)
+                 cornerRadius: compact ? 0 : cornerRadius, edgeAligned: edgeAligned)
             return
         }
         if menuLevels.count != count {
@@ -47,7 +47,7 @@ final class SpectrumPainter {
             menuPeaks[i] = peak
         }
         draw(menuLevels, peaks: menuPeaks, in: context, rect: rect,
-             style: statusStyle, vertical: vertical, cornerRadius: 0)
+             style: statusStyle, vertical: vertical, cornerRadius: 0, edgeAligned: false)
     }
 
     /// 使用同一条线性渐变为几何填色，避免为每一条柱形单独生成渐变。
@@ -70,7 +70,9 @@ final class SpectrumPainter {
     }
 
     private func draw(_ levels: [Float], peaks: [Float], in context: CGContext, rect: CGRect,
-                      style: SpectrumStyle, vertical: Bool, cornerRadius: CGFloat) {
+                      style: SpectrumStyle, vertical: Bool, cornerRadius: CGFloat, edgeAligned: Bool) {
+        context.saveGState()
+        defer { context.restoreGState() }
         let shape = CGMutablePath()
         let accents = CGMutablePath()
         let step = rect.width / CGFloat(levels.count)
@@ -115,6 +117,7 @@ final class SpectrumPainter {
                     }
                 }
             }
+            if edgeAligned { pinToBaseline(shape.boundingBoxOfPath.union(accents.boundingBoxOfPath), in: context, rect: rect) }
             paint(accents, in: context, rect: rect, vertical: vertical, alpha: style == .comet ? 0.38 : 0.85)
             paint(shape, in: context, rect: rect, vertical: vertical)
         case .wave, .silk, .double, .ridge, .ribbons:
@@ -123,25 +126,29 @@ final class SpectrumPainter {
             let height = centered ? span * 0.47 : span
             if style == .wave || style == .ridge {
                 let line = filledWave(shape, levels: levels, rect: rect, amplitude: height,
-                                      radius: cornerRadius, smooth: style == .wave)
+                                      radius: cornerRadius, smooth: style == .wave, flushBaseline: edgeAligned)
                 paint(shape, in: context, rect: rect, vertical: vertical, alpha: style == .wave ? 0.48 : 0.63)
                 paint(line, in: context, rect: rect, vertical: vertical)
             } else {
                 trace(shape, levels: levels, rect: rect, baseline: baseline, amplitude: height, smooth: true)
+                var lower: CGPath = accents
+                var middle: CGPath = CGMutablePath()
                 if style == .double || style == .ribbons {
                     trace(accents, levels: levels, rect: rect, baseline: baseline, amplitude: -height * 0.93, smooth: true)
-                    paint(accents.copy(strokingWithWidth: 1.4, lineCap: .round, lineJoin: .round, miterLimit: 2),
-                          in: context, rect: rect, vertical: vertical, alpha: 0.72)
+                    lower = accents.copy(strokingWithWidth: 1.4, lineCap: .round, lineJoin: .round, miterLimit: 2)
                 }
                 if style == .ribbons {
-                    let middle = CGMutablePath()
-                    trace(middle, levels: peaks, rect: rect, baseline: baseline, amplitude: height * 0.37, smooth: true)
-                    paint(middle.copy(strokingWithWidth: 1.1, lineCap: .round, lineJoin: .round, miterLimit: 2),
-                          in: context, rect: rect, vertical: vertical, alpha: 0.44)
+                    let line = CGMutablePath()
+                    trace(line, levels: peaks, rect: rect, baseline: baseline, amplitude: height * 0.37, smooth: true)
+                    middle = line.copy(strokingWithWidth: 1.1, lineCap: .round, lineJoin: .round, miterLimit: 2)
                 }
-                paint(shape.copy(strokingWithWidth: min(2.5, max(1.3, rect.height / 46)),
-                                 lineCap: .round, lineJoin: .round, miterLimit: 2),
-                      in: context, rect: rect, vertical: vertical)
+                let upper = shape.copy(strokingWithWidth: min(2.5, max(1.3, rect.height / 46)),
+                                       lineCap: .round, lineJoin: .round, miterLimit: 2)
+                if edgeAligned { pinToBaseline(upper.boundingBoxOfPath.union(lower.boundingBoxOfPath).union(middle.boundingBoxOfPath),
+                                               in: context, rect: rect) }
+                paint(lower, in: context, rect: rect, vertical: vertical, alpha: 0.72)
+                paint(middle, in: context, rect: rect, vertical: vertical, alpha: 0.44)
+                paint(upper, in: context, rect: rect, vertical: vertical)
             }
         case .orbit, .halo:
             if radial.count != levels.count {
@@ -170,6 +177,10 @@ final class SpectrumPainter {
             }
             if style == .halo { shape.closeSubpath() }
             accents.addEllipse(in: CGRect(x: center.x - base, y: center.y - base, width: base * 2, height: base * 2))
+            if edgeAligned {
+                // 圆形样式按实际轮廓贴边，避免随音量变化留下空白。
+                pinToBaseline(shape.boundingBoxOfPath.union(accents.boundingBoxOfPath), in: context, rect: rect)
+            }
             paint(accents.copy(strokingWithWidth: 0.9, lineCap: .round, lineJoin: .round, miterLimit: 2),
                   in: context, rect: colorRect, vertical: vertical, alpha: 0.28)
             paint(shape.copy(strokingWithWidth: max(1.1, min(3.2, extent / 27)),
@@ -180,7 +191,7 @@ final class SpectrumPainter {
 
     /// 给填充波形的四个端角留出弧线。低电平时压低弧线高度，避免两个角挤在一起。
     private func filledWave(_ path: CGMutablePath, levels: [Float], rect: CGRect, amplitude: CGFloat,
-                            radius: CGFloat, smooth: Bool) -> CGPath {
+                            radius: CGFloat, smooth: Bool, flushBaseline: Bool) -> CGPath {
         let base = rect.minY
         let left = rect.minX
         let right = rect.maxX
@@ -201,6 +212,12 @@ final class SpectrumPainter {
                               control: CGPoint(x: right, y: base + last))
         }
         let line = path.copy(strokingWithWidth: 1.4, lineCap: .round, lineJoin: .round, miterLimit: 2)
+        if flushBaseline {
+            path.addLine(to: CGPoint(x: right, y: base))
+            path.addLine(to: CGPoint(x: left, y: base))
+            path.closeSubpath()
+            return line
+        }
         path.addLine(to: CGPoint(x: right, y: base + rightRise))
         path.addQuadCurve(to: CGPoint(x: right - span, y: base), control: CGPoint(x: right, y: base))
         path.addLine(to: CGPoint(x: left + span, y: base))
@@ -211,6 +228,11 @@ final class SpectrumPainter {
 
     private func waveHeight(_ level: Float, amplitude: CGFloat) -> CGFloat {
         (0.014 + 0.97 * CGFloat(level)) * amplitude
+    }
+
+    /// 将实际几何移到基线，贴边模式不留整体空白行。
+    private func pinToBaseline(_ bounds: CGRect, in context: CGContext, rect: CGRect) {
+        if !bounds.isNull { context.translateBy(x: 0, y: rect.minY - bounds.minY) }
     }
 
     /// 按对数频带生成连续曲线；三次插值保持相邻区段的切线连续。

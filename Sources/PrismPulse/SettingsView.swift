@@ -157,6 +157,14 @@ struct SettingsView: View {
                         }.pickerStyle(.segmented).labelsHidden()
                         Text("退出全屏后恢复").font(.caption).foregroundStyle(.secondary)
                     }
+                    HStack(spacing: 11) {
+                        Text("贴边长度").foregroundStyle(.secondary)
+                        Slider(value: $model.prefs.fullscreenLength, in: 0.1...1) {
+                            Text("贴边长度占屏幕宽度的比例")
+                        }.labelsHidden()
+                        Text("\(Int((model.prefs.fullscreenLength * 100).rounded()))% 屏宽")
+                            .monospacedDigit().frame(width: 66, alignment: .trailing)
+                    }
                 }
                 HStack(spacing: 11) {
                     Text("不透明度").foregroundStyle(.secondary)
@@ -202,6 +210,8 @@ struct SettingsView: View {
                     Image(systemName: "ellipsis.circle").accessibilityLabel("音频选项")
                 }.fixedSize()
             }
+            Divider()
+            UpdateSettings(updates: model.updates)
         }
         .controlSize(.small)
         .padding(.horizontal, 23)
@@ -285,6 +295,20 @@ struct SettingsView: View {
                 }
             }
         )
+    }
+}
+
+private struct UpdateSettings: View {
+    @ObservedObject var updates: AppUpdates
+
+    var body: some View {
+        HStack {
+            Text("v\(updates.version)").font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            Toggle("自动检查更新", isOn: Binding(get: { updates.automatic }, set: { updates.setAutomatic($0) }))
+                .toggleStyle(.checkbox).disabled(!updates.enabled)
+            Button("检查更新…", action: updates.check).disabled(!updates.canCheck)
+        }
     }
 }
 

@@ -74,6 +74,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
     private var frameSave: DispatchWorkItem?
     private var quitReplied = false
     private var quitting = false
+    lazy var updates = AppUpdates(enabled: persists)
     private lazy var artMonitor = ArtworkMonitor { [weak self] update in
         guard let self, self.artwork != update else { return }
         self.artwork = update
@@ -120,6 +121,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
             Task { @MainActor [weak self] in self?.refreshFullscreenContext() }
         }
         refreshFullscreenContext()
+        if persists { _ = updates }
         if persists {
             capture.watchOutput { [weak self] in self?.outputChanged() }
         }
@@ -184,7 +186,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         let floats = prefs.onTop || fullscreenRestoreFrame != nil
         overlay.level = floats ? .floating : .normal
         overlay.collectionBehavior = floats ? [.canJoinAllSpaces, .fullScreenAuxiliary] : [.moveToActiveSpace]
-        overlay.hasShadow = prefs.backdrop
+        overlay.hasShadow = prefs.backdrop && fullscreenRestoreFrame == nil
         updateOverlayVisibility(now: ProcessInfo.processInfo.systemUptime)
         if let button = statusItem.button, let menuPlot {
             menuPlot.isHidden = !prefs.placement.showsMenu
@@ -232,12 +234,12 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
             if fullscreenRestoreFrame == nil { fullscreenRestoreFrame = overlay.frame }
             var size = fullscreenRestoreFrame!.size
             if prefs.followsDock { size.height = dockedHeight }
-            frame = prefs.fullscreenEdge.windowFrame(size: size, in: screen.frame)
-            plot.pinnedToScreenEdge = true
+            frame = prefs.fullscreenEdge.windowFrame(size: size, in: screen.frame, lengthFraction: prefs.fullscreenLength)
+            plot.screenEdge = prefs.fullscreenEdge
             plot.attachedToDock = false
         } else if let original = fullscreenRestoreFrame {
             frame = NSScreen.screens.contains { $0.frame.intersects(original) } ? original : Self.initialFrame(saved: false)
-            plot.pinnedToScreenEdge = false
+            plot.screenEdge = nil
             plot.attachedToDock = prefs.followsDock && dockAnchor != nil
         } else {
             return
@@ -628,6 +630,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         name.isEnabled = false
         menu.addItem(name)
         add("设置…", #selector(showSettings), key: ",", to: menu)
+        add("检查更新…", #selector(checkForUpdates), to: menu).isEnabled = updates.canCheck
         menu.addItem(.separator())
         for placement in Placement.allCases {
             let item = add(placement.rawValue, #selector(choosePlacement(_:)), to: menu)
@@ -663,6 +666,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
     @objc private func toggleClicks() { prefs.clickThrough.toggle() }
     @objc private func toggleDemo() { demo.toggle() }
     @objc private func toggleCapture() { prefs.capture.toggle() }
+    @objc private func checkForUpdates() { updates.check() }
     @objc private func quit() { NSApp.terminate(nil) }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -705,6 +709,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         else { fputs("UI smoke: window preferences failed\n", stderr); exit(1) }
         await checkDockAlignment()
         checkWaveCorners()
+        checkEdgePixels()
         await checkFullscreenBehavior()
         await checkPaletteFade()
         await checkScreenFrameRate()
@@ -814,6 +819,51 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
             try? rounded.representation(using: .png, properties: [:])?.write(to: url)
         }
         print("UI smoke: four waveform corners rounded with the backdrop off")
+    }
+
+    /// 对透明画布逐像素检查四边，覆盖全部样式及旋转后的方向。
+    private func checkEdgePixels() {
+        let data = SpectrumFrame(levels: [Float](repeating: 0.75, count: SpectrumAnalyzer.bandCount))
+        for edge in ScreenEdge.allCases {
+            for style in SpectrumStyle.allCases {
+                let view = SpectrumCanvas(frameData: data, surface: .window)
+                view.screenEdge = edge
+                view.frame = CGRect(x: 0, y: 0, width: edge.isVertical ? 48 : 200, height: edge.isVertical ? 200 : 48)
+                var settings = Preferences()
+                settings.backdrop = false
+                settings.style = style
+                view.apply(settings, palette: .aurora)
+                guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { exit(1) }
+                view.cacheDisplay(in: view.bounds, to: bitmap)
+                let width = bitmap.pixelsWide, height = bitmap.pixelsHigh
+                let edgeAlphas = (0..<(edge.isVertical ? height : width)).map { position -> CGFloat in
+                    switch edge {
+                    case .top: return bitmap.colorAt(x: position, y: 0)?.alphaComponent ?? 0
+                    case .bottom: return bitmap.colorAt(x: position, y: height - 1)?.alphaComponent ?? 0
+                    case .left: return bitmap.colorAt(x: 0, y: position)?.alphaComponent ?? 0
+                    case .right: return bitmap.colorAt(x: width - 1, y: position)?.alphaComponent ?? 0
+                    }
+                }
+                guard (edgeAlphas.max() ?? 0) > 0.03 else {
+                    fputs("UI smoke: blank edge pixels for \(edge.rawValue) / \(style.rawValue)\n", stderr); exit(1)
+                }
+                if style == .wave {
+                    guard edgeAlphas.dropFirst(8).dropLast(8).allSatisfy({ $0 > 0.35 }) else {
+                        fputs("UI smoke: waveform baseline has a pixel gap\n", stderr); exit(1)
+                    }
+                    if let directory = smokeDirectory {
+                        let path = URL(fileURLWithPath: directory).appendingPathComponent("edge-\(edge.id).png")
+                        try? bitmap.representation(using: .png, properties: [:])?.write(to: path)
+                    }
+                }
+            }
+        }
+        let display = CGRect(x: -1000, y: 200, width: 1000, height: 600)
+        for edge in ScreenEdge.allCases {
+            let frame = edge.windowFrame(size: CGSize(width: 300, height: 60), in: display, lengthFraction: 0.4)
+            guard (edge.isVertical ? frame.height : frame.width) == 400, display.contains(frame) else { exit(1) }
+        }
+        print("UI smoke: zero-pixel edge gaps, four orientations, 14 styles and screen-width scaling passed")
     }
 
     /// 验证全屏策略不覆盖手动位置，并能恢复 Dock 跟随。

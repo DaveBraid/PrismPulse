@@ -20,7 +20,14 @@ final class SpectrumCanvas: NSView {
     private let surface: Surface
     private var prefs = Preferences()
     private var resizeStart: (CGRect, CGPoint)?
-    var pinnedToScreenEdge = false
+    var screenEdge: ScreenEdge? {
+        didSet {
+            guard oldValue != screenEdge else { return }
+            resizeStart = nil
+            needsDisplay = true
+        }
+    }
+    var pinnedToScreenEdge: Bool { screenEdge != nil }
     var attachedToDock = false {
         didSet {
             guard oldValue != attachedToDock else { return }
@@ -53,6 +60,31 @@ final class SpectrumCanvas: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
+        if surface == .window, let edge = screenEdge {
+            // 先在“底边向上”的统一坐标绘制，再翻转或旋转到目标边。
+            context.saveGState()
+            defer { context.restoreGState() }
+            switch edge {
+            case .bottom: break
+            case .top:
+                context.translateBy(x: 0, y: bounds.height)
+                context.scaleBy(x: 1, y: -1)
+            case .left:
+                context.concatenate(CGAffineTransform(a: 0, b: 1, c: 1, d: 0, tx: 0, ty: 0))
+            case .right:
+                context.translateBy(x: bounds.width, y: 0)
+                context.rotate(by: .pi / 2)
+            }
+            let rect = CGRect(x: 0, y: 0, width: edge.isVertical ? bounds.height : bounds.width,
+                              height: edge.isVertical ? bounds.width : bounds.height)
+            if prefs.backdrop {
+                context.setFillColor(Self.panelInk)
+                context.fill(rect)
+            }
+            painter.draw(frameData, in: context, rect: rect, style: prefs.style, vertical: prefs.vertical,
+                         compact: false, cornerRadius: prefs.cornerRadius, edgeAligned: true)
+            return
+        }
         let compact = surface == .status
         let paddingX: CGFloat = compact ? 7 : min(23, bounds.width * 0.075)
         let paddingY: CGFloat = compact ? 6 : min(17, bounds.height * 0.17)

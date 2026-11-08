@@ -21,10 +21,15 @@ enum FullscreenBehavior: String, Codable, CaseIterable, Identifiable {
 enum ScreenEdge: String, Codable, CaseIterable, Identifiable {
     case top = "上", bottom = "下", left = "左", right = "右"
     var id: Self { self }
+    var isVertical: Bool { self == .left || self == .right }
 
     /// 沿所选屏幕边缘居中，尺寸限制在该屏幕内。
-    func windowFrame(size: CGSize, in screen: CGRect) -> CGRect {
-        let width = min(size.width, screen.width), height = min(size.height, screen.height)
+    func windowFrame(size: CGSize, in screen: CGRect, lengthFraction: Double = 1) -> CGRect {
+        // 所有方向都以屏宽为缩放基准，纵向长度不超过屏高。
+        let length = floor(min(screen.width * min(1, max(0.1, lengthFraction)),
+                               isVertical ? screen.height : screen.width))
+        let width = isVertical ? min(size.height, screen.width) : length
+        let height = isVertical ? length : min(size.height, screen.height)
         // 与 AppKit 的窗口整点对齐规则一致，避免居中产生半点偏差。
         var frame = CGRect(x: floor(screen.midX - width / 2), y: floor(screen.midY - height / 2), width: width, height: height)
         switch self {
@@ -94,6 +99,11 @@ struct Preferences: Codable, Equatable {
     private var savedCornerRadius: Double?
     private var savedFullscreenBehavior: FullscreenBehavior?
     private var savedFullscreenEdge: ScreenEdge?
+    private var savedFullscreenLength: Double?
+    var fullscreenLength: Double {
+        get { min(1, max(0.1, savedFullscreenLength ?? 1)) }
+        set { savedFullscreenLength = newValue.isFinite ? min(1, max(0.1, newValue)) : 1 }
+    }
     var fullscreenBehavior: FullscreenBehavior {
         get { savedFullscreenBehavior ?? .unchanged }
         set { savedFullscreenBehavior = newValue }

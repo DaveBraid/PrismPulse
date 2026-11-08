@@ -16,7 +16,8 @@ PrismPulse 是 macOS 的实时系统音频频谱。让正在播放的音乐、�
 - **自动提取封面颜色**。默认把当前专辑封面或视频缩略图配成渐变。备用配色到封面配色、换封面时都平滑过渡。可从 Music、Spotify、Tabbit、Chrome 和 Safari 取色。封面不可用时使用备用配色，也可以自己设定单色或双色渐变。
 - **14 种频谱样式**。从光柱、珠链到波形和环形。悬浮窗支持置顶、点击穿透、透明度和拖动缩放。菜单栏频谱可调长度，支持自适应铺满和全透明背景。
 - **有声时跳动，安静时淡出**。静音后浮窗自动淡出，声音回来时淡入。帧率可选固定档或「跟随屏幕」。静音时降低音频检查频率。
-- **全屏时自动避让**。在「设置 → 悬浮窗 → 应用全屏时」选择淡出隐藏，或沿屏幕上、下、左、右边缘居中显示。退出全屏后恢复原位置和 Dock 跟随。默认保持原样，按浮窗所在屏幕的原生全屏状态判断。
+- **全屏时自动避让**。在「设置 → 悬浮窗 → 应用全屏时」选择淡出隐藏或贴边显示。频谱基线直接贴住屏幕边界，顶部向下展开，左右自动旋转为纵向并朝屏幕内部展开。「贴边长度」按屏幕宽度的 10%–100% 缩放，左右最长限制在屏幕高度内。退出全屏后恢复原位置和 Dock 跟随。默认保持原样，按浮窗所在屏幕的原生全屏状态判断。
+- **应用内更新**。默认每天自动检查 GitHub 发布的新版本，也可从菜单栏或设置中点「检查更新…」。发现更新后，点击安装即可完成下载、签名验证、替换和重启。可在设置中关闭自动检查。
 
 <details>
 <summary>查看 14 种样式</summary>
@@ -35,6 +36,8 @@ PrismPulse 是 macOS 的实时系统音频频谱。让正在播放的音乐、�
 
 安装包采用临时签名，未经 Apple 公证。如果 macOS 提示无法验证，确认文件来自本仓库后，可在首次尝试打开后到「系统设置 → 隐私与安全性」选择「仍要打开」。[Apple 的打开说明](https://support.apple.com/zh-cn/102445)
 
+0.7 及更早版本需要先手动安装一次 1.0，后续版本可在应用内更新。
+
 ## 快速上手
 
 - **贴到 Dock 上方**。把 Dock 放在屏幕底部，在「设置 → 悬浮窗」勾选「跟随 Dock」。拖动浮窗可摆放位置，拖右下角可缩放。贴合时可在设置里调整高度。
@@ -45,7 +48,7 @@ PrismPulse 是 macOS 的实时系统音频频谱。让正在播放的音乐、�
 
 ## 从源码构建
 
-安装带 Swift 6 和 macOS 14.4 或更新 SDK 的 Xcode 或 Command Line Tools。项目没有第三方依赖。
+安装带 Swift 6 和 macOS 14.4 或更新 SDK 的 Xcode 或 Command Line Tools。首次构建会通过 Swift Package Manager 下载固定版本的 Sparkle 更新框架。
 
 ```sh
 git clone https://github.com/DaveBraid/PrismPulse.git
@@ -58,6 +61,25 @@ open build/PrismPulse.app
 
 实现参考 [Apple Core Audio Taps](https://developer.apple.com/documentation/coreaudio/capturing-system-audio-with-core-audio-taps)、[AudioCap](https://github.com/insidegui/AudioCap)、[Nowsee](https://github.com/Sergio-prog/Nowsee) 和 [Hammerspoon 的空间查询](https://github.com/Hammerspoon/hammerspoon/blob/master/extensions/spaces/libspaces.m)。全屏识别使用只读的非公开空间布局接口，接口不可用时退回 AppKit 的展示状态。macOS 更新可能影响识别。
 
+## 发布后续更新
+
+准备好包含 arm64 和 x86_64 的通用版应用及发布说明后，执行以下命令。脚本会生成签名安装包、签名更新信息和校验值，再把安装包和 `appcast.xml` 一起发布到 GitHub Release。
+
+```sh
+./Scripts/prepare-update.sh build/PrismPulse.app release-notes.md
+version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' build/PrismPulse.app/Contents/Info.plist)
+git push origin main
+gh release create "v$version" \
+  "build/releases/v$version/PrismPulse-macOS.zip" \
+  "build/releases/v$version/appcast.xml" \
+  "build/releases/v$version/SHA256SUMS" \
+  --target "$(git rev-parse HEAD)" --notes-file release-notes.md --latest
+```
+
+发布前递增 `CFBundleVersion` 并更新 `CFBundleShortVersionString`。更新签名私钥保存在本机登录钥匙串的 `local.ethanlee.PrismPulse` 账号下，后续发布需保留同一密钥和应用公钥。脚本默认使用 SwiftPM 下载的 Sparkle 工具，也可用 `SPARKLE_TOOLS_DIR` 指定工具目录。
+
 ## 许可证
+
+更新功能使用 [Sparkle](https://sparkle-project.org/)，安装包中包含其许可证。
 
 [MIT](LICENSE)

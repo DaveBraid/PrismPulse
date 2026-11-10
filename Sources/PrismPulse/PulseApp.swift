@@ -110,8 +110,6 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         restartAudio()
         updateArtworkMonitor()
         let workspace = NSWorkspace.shared.notificationCenter
-        workspace.addObserver(self, selector: #selector(playerAppsChanged(_:)), name: NSWorkspace.didLaunchApplicationNotification, object: nil)
-        workspace.addObserver(self, selector: #selector(playerAppsChanged(_:)), name: NSWorkspace.didTerminateApplicationNotification, object: nil)
         workspace.addObserver(self, selector: #selector(outputChanged), name: NSWorkspace.didWakeNotification, object: nil)
         for name in [NSWorkspace.didActivateApplicationNotification, NSWorkspace.activeSpaceDidChangeNotification] {
             workspace.addObserver(self, selector: #selector(menuLayoutContextChanged), name: name, object: nil)
@@ -513,12 +511,6 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         artMonitor.configure(enabled: !demo && prefs.capture && prefs.colorMode == .artwork)
     }
 
-    @objc private func playerAppsChanged(_ notification: Notification) {
-        guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-              Player.allCases.contains(where: { $0.bundleID == app.bundleIdentifier }) else { return }
-        artMonitor.refresh()
-    }
-
     /// 合并蓝牙或系统唤醒事件，等待新的输出设备完成切换。
     @objc private func outputChanged() {
         guard !quitting, prefs.capture, !demo else { return }
@@ -527,8 +519,6 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         routeRestart = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
     }
-
-    func connectArtwork(_ player: Player) { artMonitor.refresh(ask: player) }
 
     /// 只在贴 Dock 的浮窗显示时跟踪边界，频谱绘图不会触发位置查询。
     private func updateDockTracking() {
@@ -625,10 +615,6 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
 
     @objc func openAudioPermissions() {
         openPrivacy("Privacy_ScreenCapture")
-    }
-
-    @objc func openAutomationPermissions() {
-        openPrivacy("Privacy_Automation")
     }
 
     private func openPrivacy(_ pane: String) {

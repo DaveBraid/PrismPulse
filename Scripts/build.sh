@@ -27,8 +27,7 @@ cp Support/Info.plist "$bundle/Contents/"
 cp LICENSE "$bundle/Contents/Resources/LICENSE"
 cp "$sparkle/LICENSE" "$bundle/Contents/Resources/Sparkle-LICENSE"
 if [[ -f Support/AppIcon.icns ]]; then cp Support/AppIcon.icns "$bundle/Contents/Resources/"; fi
-codesign --force --sign "${PRISMPULSE_SIGN_IDENTITY:--}" --timestamp=none \
-    --entitlements Support/Entitlements.plist "$bundle"
+codesign --force --sign "${PRISMPULSE_SIGN_IDENTITY:--}" --timestamp=none "$bundle"
 codesign --verify --strict "$bundle"
 # 只替换本脚本生成的构建产物。
 if [[ -e build/PrismPulse.app ]]; then rm -rf -- build/PrismPulse.app; fi

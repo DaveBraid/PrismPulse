@@ -7,8 +7,8 @@
     <key>CFBundleDisplayName</key><string>流光频谱</string>
     <key>CFBundleExecutable</key><string>PrismPulse</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.1.0</string>
-    <key>CFBundleVersion</key><string>110</string>
+    <key>CFBundleShortVersionString</key><string>1.2.0</string>
+    <key>CFBundleVersion</key><string>120</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
     <key>LSMinimumSystemVersion</key><string>14.4</string>
@@ -23,7 +23,5 @@
     <key>SURequireSignedFeed</key><true/>
     <key>NSAudioCaptureUsageDescription</key>
     <string>流光频谱使用系统输出音频在本机计算实时频谱。音频不会被保存或上传。</string>
-    <key>NSAppleEventsUsageDescription</key>
-    <string>流光频谱读取你授权的播放器或浏览器中当前媒体的封面，用于给频谱自动配色。</string>
 </dict>
 </plist>

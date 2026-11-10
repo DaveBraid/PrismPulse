@@ -91,20 +91,8 @@ struct SettingsView: View {
                 if model.prefs.colorMode == .artwork {
                     GridRow {
                         rowLabel("封面来源")
-                        HStack {
-                            Text(model.artwork.note).font(.caption).foregroundStyle(.secondary)
-                                .lineLimit(1)
-                            Spacer(minLength: 4)
-                            if !model.artwork.connectable.isEmpty {
-                                Menu("授权取色") {
-                                    ForEach(model.artwork.connectable) { player in
-                                        Button("允许 \(player.rawValue)") { model.connectArtwork(player) }
-                                    }
-                                }.fixedSize()
-                            } else if model.artwork.note.contains("自动化") {
-                                Button("系统设置…", action: model.openAutomationPermissions)
-                            }
-                        }
+                        Text(model.artwork.note).font(.caption).foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
                 }
             }

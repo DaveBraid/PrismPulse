@@ -13,7 +13,7 @@ PrismPulse is a live system audio visualizer for macOS. Let your music, videos, 
 ## Features
 
 - **Follow the Dock.** Keep the spectrum centered just above the bottom Dock. It follows the Dock's width and leaves room for its rounded corners. Set the height and corner radius separately. Pick the wave style (「涌浪」) and turn off the dark backdrop for a transparent wave that meets the top of the Dock.
-- **Extract colors from artwork.** PrismPulse blends colors from the current album cover or video thumbnail by default. Colors transition smoothly from the fallback palette and between covers. It can read artwork from Music, Spotify, QQ Music, Tabbit, Chrome, and Safari. Choose a fallback palette, a single color, or a custom two-color gradient.
+- **Extract colors from artwork.** PrismPulse blends colors from the current album cover or video thumbnail by default. Colors transition smoothly from the fallback palette and between covers. It uses the current macOS Now Playing artwork, including covers and thumbnails from apps that publish them to the system. Choose a fallback palette, a single color, or a custom two-color gradient.
 - **14 spectrum styles.** Choose from bars, beads, waves, and rings. The floating window supports always on top, click-through, opacity, and drag resizing. The menu bar spectrum supports adjustable width, automatic fit, and a fully transparent background.
 - **Fade out in silence.** The window fades away when playback goes quiet and fades in when sound returns. Choose a fixed frame rate or follow the current display. Audio checks slow down when idle.
 - **Snap to a desktop edge.** Under 「悬浮窗 → 桌面位置」, choose 「贴边显示」 for the left, top, or right edge. The top meets the bottom of the menu bar, and the sides leave space for a side Dock. Set the length to 10%–100% of the display width, capped by the available space.
@@ -50,8 +50,7 @@ gh release download --repo DaveBraid/PrismPulse --pattern PrismPulse-macOS.zip
 The app uses Chinese labels. These are the settings to look for.
 
 - **Position the floating window.** Choose free placement, bottom Dock, or edge snapping under 「悬浮窗 → 桌面位置」. Drag and resize in free placement. Set the height when following the Dock, or use 「桌面贴边」 for direction and length and 「贴边厚度」 for the thickness of a snapped spectrum.
-- **Use QQ Music artwork.** Choose 「封面取色」 and play a song in the QQ Music desktop app. PrismPulse uses its artwork when QQ Music is the active macOS Now Playing source, without an additional permission prompt. If the artwork is unavailable, PrismPulse tries other sources before using your fallback palette.
-- **Use browser artwork.** With media playing, open 「授权取色」 under 「封面来源」 in settings and select your browser. In Tabbit and Chrome, enable **View → Developer → Allow JavaScript from Apple Events**. In Safari, the option is under **Settings → Developer → Automation**. PrismPulse looks for Media Session artwork first and can also use video posters or page images.
+- **Follow system artwork.** Choose 「封面取色」. PrismPulse uses the cover for the active macOS Now Playing session, including artwork published by QQ Music and browsers, without an additional permission prompt. PrismPulse uses your fallback palette when the system artwork is missing or cannot be read.
 - **Check audio.** The menu's demo mode (「演示动画」) needs no recording permission. If the spectrum stays still during playback, check **System Settings → Privacy & Security → Screen & System Audio Recording**, then choose 「重连系统音频」 to reconnect.
 
 Audio analysis and artwork color extraction run locally. PrismPulse captures system output through a Core Audio Process Tap. It does not save or upload audio.

@@ -1,20 +1,28 @@
 import AppKit
 import ApplicationServices
+import CryptoKit
 import SpectrumCore
 
 enum Player: String, CaseIterable, Identifiable, Sendable {
-    case music = "Music", spotify = "Spotify", tabbit = "Tabbit", chrome = "Chrome", safari = "Safari"
+    case music = "Music", spotify = "Spotify", qqMusic = "QQ 音乐"
+    case tabbit = "Tabbit", chrome = "Chrome", safari = "Safari"
     var id: Self { self }
     var bundleID: String {
         switch self {
         case .music: "com.apple.Music"
         case .spotify: "com.spotify.client"
+        case .qqMusic: "com.tencent.QQMusicMac"
         case .tabbit: "com.tabbit-ai.Tabbit"
         case .chrome: "com.google.Chrome"
         case .safari: "com.apple.Safari"
         }
     }
-    var isBrowser: Bool { self != .music && self != .spotify }
+    var isBrowser: Bool {
+        switch self {
+        case .tabbit, .chrome, .safari: true
+        case .music, .spotify, .qqMusic: false
+        }
+    }
 }
 
 struct ArtworkUpdate: Equatable, Sendable {
@@ -115,13 +123,32 @@ private final class ArtworkReader: @unchecked Sendable {
         var connectable: [Player] = []
         var refused = false
         var note: String?
-        for (player, pid) in targets {
+        for (player, pid) in targets where player != .qqMusic {
             let target = PlaybackEvents(pid: pid)
             let status = AEDeterminePermissionToAutomateTarget(target.address.aeDesc, kAECoreSuite, kAEGetData, request == player)
             if status == noErr { candidates.append((player, target)) }
             if status == errAEEventWouldRequireUserConsent { connectable.append(player) }
             if status == errAEEventNotPermitted { refused = true }
         }
+        // QQ 音乐是系统正在播放的来源时优先用其封面。
+        let previousQQ = cache[.qqMusic]
+        let cachedQQKey = previousQQ?.palette == nil ? nil : previousQQ?.key
+        if targets.contains(where: { $0.0 == .qqMusic }),
+           let cover = QQMusicArtwork.read(reusing: cachedQQKey) {
+            let palette: SpectrumPalette?
+            if let image = cover.artwork {
+                let key = cover.key ?? "hash:" + Data(SHA256.hash(data: image)).base64EncodedString()
+                palette = localPalette(.qqMusic, key: key) { image }
+            } else {
+                palette = cover.key == cachedQQKey ? previousQQ?.palette : nil
+            }
+            if let palette {
+                completion(ArtworkUpdate(palette: palette, note: "正在跟随 QQ 音乐的封面", connectable: connectable))
+                return
+            }
+            note = "QQ 音乐未提供可用封面"
+        }
+
         let sounding = candidates.contains(where: { $0.0.isBrowser }) ? BrowserArtwork.audioBundles() : []
         // 原生播放器先检查播放状态；浏览器优先跟随正在输出音频的应用。
         let ordered = candidates.filter { !$0.0.isBrowser }

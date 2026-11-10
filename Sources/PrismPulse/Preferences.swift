@@ -18,25 +18,38 @@ enum FullscreenBehavior: String, Codable, CaseIterable, Identifiable {
     var id: Self { self }
 }
 
+enum DesktopPosition: String, Codable, CaseIterable, Identifiable {
+    case free = "自由摆放", dock = "跟随 Dock", edge = "贴边显示"
+    var id: Self { self }
+}
+
 enum ScreenEdge: String, Codable, CaseIterable, Identifiable {
     case top = "上", bottom = "下", left = "左", right = "右"
     var id: Self { self }
     var isVertical: Bool { self == .left || self == .right }
+    static let desktopChoices: [Self] = [.left, .top, .right]
+    static let lengthRange = 0.1...1.0
 
-    /// 沿所选屏幕边缘居中，尺寸限制在该屏幕内。
-    func windowFrame(size: CGSize, in screen: CGRect, lengthFraction: Double = 1) -> CGRect {
-        // 所有方向都以屏宽为缩放基准，纵向长度不超过屏高。
-        let length = floor(min(screen.width * min(1, max(0.1, lengthFraction)),
-                               isVertical ? screen.height : screen.width))
-        let width = isVertical ? min(size.height, screen.width) : length
-        let height = isVertical ? length : min(size.height, screen.height)
+    /// 将长度比例限制在滑块范围内，无效值按铺满处理。
+    static func clampedLength(_ fraction: Double) -> Double {
+        guard fraction.isFinite else { return 1 }
+        return min(lengthRange.upperBound, max(lengthRange.lowerBound, fraction))
+    }
+
+    /// 以屏宽计算长度，在可用区域内沿所选边缘居中；全屏使用物理边界。
+    func windowFrame(size: CGSize, in screen: CGRect, lengthFraction: Double = 1, within area: CGRect? = nil) -> CGRect {
+        let bounds = area ?? screen
+        let length = floor(min(screen.width * Self.clampedLength(lengthFraction),
+                               isVertical ? bounds.height : bounds.width))
+        let width = isVertical ? min(size.height, bounds.width) : length
+        let height = isVertical ? length : min(size.height, bounds.height)
         // 与 AppKit 的窗口整点对齐规则一致，避免居中产生半点偏差。
-        var frame = CGRect(x: floor(screen.midX - width / 2), y: floor(screen.midY - height / 2), width: width, height: height)
+        var frame = CGRect(x: floor(bounds.midX - width / 2), y: floor(bounds.midY - height / 2), width: width, height: height)
         switch self {
-        case .top: frame.origin.y = screen.maxY - height
-        case .bottom: frame.origin.y = screen.minY
-        case .left: frame.origin.x = screen.minX
-        case .right: frame.origin.x = screen.maxX - width
+        case .top: frame.origin.y = bounds.maxY - height
+        case .bottom: frame.origin.y = bounds.minY
+        case .left: frame.origin.x = bounds.minX
+        case .right: frame.origin.x = bounds.maxX - width
         }
         return frame
     }
@@ -100,9 +113,31 @@ struct Preferences: Codable, Equatable {
     private var savedFullscreenBehavior: FullscreenBehavior?
     private var savedFullscreenEdge: ScreenEdge?
     private var savedFullscreenLength: Double?
+    private var savedDesktopPosition: DesktopPosition?
+    private var savedDesktopEdge: ScreenEdge?
+    private var savedDesktopLength: Double?
+
+    var desktopPosition: DesktopPosition {
+        get { savedDesktopPosition ?? (savedFollowDock == true ? .dock : .free) }
+        set {
+            savedDesktopPosition = newValue
+            savedFollowDock = newValue == .dock // 旧版仍可读取 Dock 状态。
+        }
+    }
+    var desktopEdge: ScreenEdge {
+        get {
+            guard let edge = savedDesktopEdge, ScreenEdge.desktopChoices.contains(edge) else { return .top }
+            return edge
+        }
+        set { savedDesktopEdge = newValue }
+    }
+    var desktopLength: Double {
+        get { ScreenEdge.clampedLength(savedDesktopLength ?? 1) }
+        set { savedDesktopLength = ScreenEdge.clampedLength(newValue) }
+    }
     var fullscreenLength: Double {
-        get { min(1, max(0.1, savedFullscreenLength ?? 1)) }
-        set { savedFullscreenLength = newValue.isFinite ? min(1, max(0.1, newValue)) : 1 }
+        get { ScreenEdge.clampedLength(savedFullscreenLength ?? 1) }
+        set { savedFullscreenLength = ScreenEdge.clampedLength(newValue) }
     }
     var fullscreenBehavior: FullscreenBehavior {
         get { savedFullscreenBehavior ?? .unchanged }
@@ -116,10 +151,11 @@ struct Preferences: Codable, Equatable {
         get { min(Self.maximumCornerRadius, max(0, savedCornerRadius ?? 12)) }
         set { savedCornerRadius = newValue }
     }
-    var dockHeight: Double?  // 留空时使用手动浮窗的高度。
+    var dockHeight: Double?         // 留空时使用自由浮窗的高度。
+    var desktopEdgeThickness: Double? // 横向为高度，纵向为宽度。
     var followsDock: Bool {
-        get { savedFollowDock ?? false }
-        set { savedFollowDock = newValue }
+        get { desktopPosition == .dock }
+        set { desktopPosition = newValue ? .dock : .free }
     }
     var hidesWhenSilent: Bool {
         get { savedHideWhenSilent ?? true }
@@ -138,6 +174,9 @@ struct Preferences: Codable, Equatable {
             settings.fps = defaultFPS
         }
         if let height = settings.dockHeight { settings.dockHeight = min(680, max(48, height)) }
+        if let thickness = settings.desktopEdgeThickness {
+            settings.desktopEdgeThickness = min(680, max(48, thickness))
+        }
         if var statusBar = settings.savedStatusBar {
             statusBar.width = min(StatusBarPreferences.maximumWidth, max(StatusBarPreferences.minimumWidth, statusBar.width))
             statusBar.backgroundOpacity = min(1, max(0, statusBar.backgroundOpacity))

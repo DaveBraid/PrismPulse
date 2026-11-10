@@ -4,7 +4,7 @@ import SpectrumCore
 final class SpectrumPanel: NSPanel {
     var pinsToScreenEdge = false
 
-    /// 全屏贴边允许贴到物理屏幕顶部，避免系统自动向下避让菜单栏。
+    /// 贴边使用计算好的边框，允许全屏时紧贴物理屏幕顶部。
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
         pinsToScreenEdge ? frameRect : super.constrainFrameRect(frameRect, to: screen)
     }

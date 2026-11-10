@@ -9,12 +9,16 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         didSet {
             guard oldValue != prefs, overlay != nil else { return }
             if persists { prefs.save() }
-            updateFullscreenPlacement()
-            if oldValue.followsDock != prefs.followsDock || oldValue.placement != prefs.placement ||
+            let positionChanged = oldValue.desktopPosition != prefs.desktopPosition
+            if positionChanged {
+                if !prefs.followsDock { dockAnchor = nil }
+                refreshFullscreenContext()
+            }
+            updateOverlayPlacement()
+            if positionChanged || oldValue.placement != prefs.placement ||
                oldValue.fullscreenBehavior != prefs.fullscreenBehavior {
                 updateDockTracking()
             }
-            if oldValue.dockHeight != prefs.dockHeight { alignOverlay() }
             applyAppearance()
             if oldValue.capture != prefs.capture { restartAudio() }
             if oldValue.colorMode != prefs.colorMode || oldValue.capture != prefs.capture { updateArtworkMonitor() }
@@ -49,7 +53,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
     private var dockAnchor: DockAlignment.Anchor?
     private var dockTimer: Timer?
     private var fullscreenScreen: NSScreen?
-    private var fullscreenRestoreFrame: CGRect?
+    private var applyingOverlayFrame = false
     private var presentationObserver: NSKeyValueObservation?
     private var fullscreenRefresh: DispatchWorkItem?
     private var statusItem: NSStatusItem!
@@ -101,7 +105,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
     /// 创建窗口、菜单栏入口和音频监控；演示模式完全使用合成数据。
     func applicationDidFinishLaunching(_ notification: Notification) {
         makeSurfaces()
-        updateDockTracking()
+        updateOverlayPlacement()
         applyAppearance()
         restartAudio()
         updateArtworkMonitor()
@@ -183,10 +187,10 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
 
     /// 应用交互和外观设置；只在显示模式实际切换时重新排序窗口。
     private func applyAppearance() {
-        let floats = prefs.onTop || fullscreenRestoreFrame != nil
+        let floats = prefs.onTop || fullscreenEdgeScreen != nil
         overlay.level = floats ? .floating : .normal
         overlay.collectionBehavior = floats ? [.canJoinAllSpaces, .fullScreenAuxiliary] : [.moveToActiveSpace]
-        overlay.hasShadow = prefs.backdrop && fullscreenRestoreFrame == nil
+        overlay.hasShadow = prefs.backdrop && !plot.pinnedToScreenEdge
         updateOverlayVisibility(now: ProcessInfo.processInfo.systemUptime)
         if let button = statusItem.button, let menuPlot {
             menuPlot.isHidden = !prefs.placement.showsMenu
@@ -208,48 +212,84 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
     }
 
+    private var layoutScreen: NSScreen? {
+        // 自动布局始终以桌面位置确定显示器，避免把临时贴边位置作为下一次的锚点。
+        let anchor = (prefs.followsDock ? dockAnchor?.display : nil) ?? freeWindowFrame
+        let center = CGPoint(x: anchor.midX, y: anchor.midY)
+        return NSScreen.screens.first { $0.frame.contains(center) } ?? overlay.screen ?? NSScreen.main
+    }
+
+    private var fullscreenEdgeScreen: NSScreen? {
+        prefs.placement.showsWindow && prefs.fullscreenBehavior == .edge ? fullscreenScreen : nil
+    }
+
     /// 显示器的全屏空间改变时更新浮窗，不在绘图循环里轮询。
     private func refreshFullscreenContext() {
-        guard !quitting else { return }
-        let candidate = overlay.screen ?? NSScreen.main
-        let screen = candidate.flatMap { FullscreenContext.isFullscreen(on: $0) ? $0 : nil }
+        // 界面自检注入全屏状态，避免真实 Space 通知覆盖测试过程。
+        guard !quitting, !smoke else { return }
+        let screen = layoutScreen.flatMap { FullscreenContext.isFullscreen(on: $0) ? $0 : nil }
         updateFullscreenContext(screen)
     }
 
+    /// 同步全屏策略；桌面贴边同时刷新菜单栏和 Dock 占用后的可用区域。
     private func updateFullscreenContext(_ screen: NSScreen?) {
-        guard screen?.frame != fullscreenScreen?.frame else { return }
+        let changed = screen?.frame != fullscreenScreen?.frame
         fullscreenScreen = screen
-        updateFullscreenPlacement()
+        if changed || prefs.desktopPosition == .edge { updateOverlayPlacement() }
+        guard changed else { return }
         applyAppearance()
         updateDockTracking()
         tuneClock()
     }
 
-    /// 贴边位置只在全屏期间生效，退出时恢复浮窗并交还 Dock 跟随。
-    private func updateFullscreenPlacement() {
-        let frame: CGRect
-        let pinning = fullscreenScreen != nil && prefs.fullscreenBehavior == .edge && prefs.placement.showsWindow
-        overlay.pinsToScreenEdge = pinning
-        if pinning, let screen = fullscreenScreen {
-            if fullscreenRestoreFrame == nil { fullscreenRestoreFrame = overlay.frame }
-            var size = fullscreenRestoreFrame!.size
-            if prefs.followsDock { size.height = dockedHeight }
-            frame = prefs.fullscreenEdge.windowFrame(size: size, in: screen.frame, lengthFraction: prefs.fullscreenLength)
-            plot.screenEdge = prefs.fullscreenEdge
-            plot.attachedToDock = false
-        } else if let original = fullscreenRestoreFrame {
-            frame = NSScreen.screens.contains { $0.frame.intersects(original) } ? original : Self.initialFrame(saved: false)
-            plot.screenEdge = nil
-            plot.attachedToDock = prefs.followsDock && dockAnchor != nil
-        } else {
-            return
+    private var positionedHeight: CGFloat {
+        switch prefs.desktopPosition {
+        case .free: freeWindowFrame.height
+        case .dock: prefs.dockHeight ?? freeWindowFrame.height
+        case .edge: prefs.desktopEdgeThickness ?? freeWindowFrame.height
         }
+    }
+
+    /// 将桌面位置和全屏策略解析成窗口边框；自动布局共享同一份自由位置。
+    private func updateOverlayPlacement() {
+        let fullscreen = fullscreenEdgeScreen
+        let screen = fullscreen ?? (prefs.placement.showsWindow && prefs.desktopPosition == .edge ? layoutScreen : nil)
+        let dock = screen == nil && prefs.followsDock ? dockAnchor : nil
+        let wasAnchored = plot.pinnedToScreenEdge || plot.attachedToDock
+        let edge: ScreenEdge?
+        let frame: CGRect
+        if let screen {
+            let direction = fullscreen == nil ? prefs.desktopEdge : prefs.fullscreenEdge
+            let length = fullscreen == nil ? prefs.desktopLength : prefs.fullscreenLength
+            let size = CGSize(width: freeWindowFrame.width, height: positionedHeight)
+            frame = direction.windowFrame(size: size, in: screen.frame, lengthFraction: length,
+                                          within: fullscreen == nil ? screen.visibleFrame : nil)
+            edge = direction
+        } else if let dock {
+            frame = dock.windowFrame(height: positionedHeight)
+            edge = nil
+        } else {
+            guard wasAnchored else { return }
+            if !NSScreen.screens.contains(where: { $0.frame.intersects(freeWindowFrame) }) {
+                freeWindowFrame = Self.initialFrame(saved: persists)
+            }
+            frame = freeWindowFrame
+            edge = nil
+        }
+
+        overlay.pinsToScreenEdge = edge != nil
+        plot.screenEdge = edge
+        plot.attachedToDock = dock != nil
+        let anchored = edge != nil || dock != nil
+        guard overlay.frame != frame || anchored != wasAnchored else { return }
+        // 尺寸约束和窗口移动都会触发回调，恢复过程中不记录中间位置。
+        applyingOverlayFrame = true
+        defer { applyingOverlayFrame = false }
         overlay.minSize = CGSize(width: min(Self.freeWindowMinimum.width, frame.width),
                                  height: min(Self.freeWindowMinimum.height, frame.height))
         overlay.maxSize = CGSize(width: max(Self.freeWindowMaximum.width, frame.width),
                                  height: max(Self.freeWindowMaximum.height, frame.height))
         if overlay.frame != frame { overlay.setFrame(frame, display: overlay.isVisible) }
-        if !pinning { fullscreenRestoreFrame = nil }
     }
 
     /// 屏幕模式或刷新率改变后重读显示配置。
@@ -264,7 +304,10 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         guard let window = notification.object as? NSWindow else { return }
         let isMenuWindow = window === statusItem.button?.window
         if isMenuWindow { menuLength.layoutChanged() }
-        if window === overlay, notification.name == NSWindow.didChangeScreenNotification { refreshFullscreenContext() }
+        if window === overlay, notification.name == NSWindow.didChangeScreenNotification {
+            // 等窗口移动及自由位置回调结束，再读最终所在的屏幕。
+            DispatchQueue.main.async { [weak self] in self?.refreshFullscreenContext() }
+        }
         guard prefs.fps == Preferences.screenFPS, isMenuWindow || window === overlay,
               notification.name != NSWindow.didMoveNotification else { return }
         tuneClock()
@@ -489,85 +532,57 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
 
     /// 只在贴 Dock 的浮窗显示时跟踪边界，频谱绘图不会触发位置查询。
     private func updateDockTracking() {
-        if fullscreenRestoreFrame != nil {
+        guard fullscreenEdgeScreen == nil, prefs.followsDock, prefs.placement.showsWindow, overlay.isVisible else {
             dockTimer?.invalidate()
             dockTimer = nil
-            return
-        }
-        guard prefs.followsDock, prefs.placement.showsWindow, overlay.isVisible else {
-            dockTimer?.invalidate()
-            dockTimer = nil
-            if !prefs.followsDock { detachOverlayFromDock() }
             return
         }
         guard dockTimer == nil else { return }
-        refreshDockAlignment()
         let timer = Timer(timeInterval: 0.4, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refreshDockAlignment() }
         }
         timer.tolerance = 0.1
         RunLoop.main.add(timer, forMode: .common)
         dockTimer = timer
+        refreshDockAlignment()
     }
 
-    /// Dock 暂时隐藏时保留上次边界，换到侧边或断开原显示器时恢复手动布局。
+    /// Dock 暂时隐藏时保留上次边界，换到侧边或断开原显示器时恢复自由布局。
     private func refreshDockAlignment() {
         switch DockAlignment.read() {
         case let .bottom(anchor):
-            if dockAnchor == nil { freeWindowFrame = overlay.frame }
             dockAnchor = anchor
-            alignOverlay()
         case .otherEdge:
-            detachOverlayFromDock()
+            dockAnchor = nil
         case .unavailable:
             if let dockAnchor, !NSScreen.screens.contains(where: { $0.frame == dockAnchor.display }) {
-                detachOverlayFromDock()
+                self.dockAnchor = nil
             }
         }
+        updateOverlayPlacement()
     }
 
-    private var dockedHeight: CGFloat { prefs.dockHeight ?? freeWindowFrame.height }
-
-    private func alignOverlay() {
-        guard fullscreenRestoreFrame == nil, let dockAnchor else { return }
-        let frame = dockAnchor.windowFrame(height: dockedHeight)
-        if !plot.attachedToDock { plot.attachedToDock = true }
-        if overlay.frame == frame { return }
-        // 贴合时允许超过手动窗口的最大宽度，窄 Dock 也能精确匹配。
-        overlay.minSize = CGSize(width: min(Self.freeWindowMinimum.width, frame.width), height: Self.freeWindowMinimum.height)
-        overlay.maxSize = CGSize(width: max(Self.freeWindowMaximum.width, frame.width), height: Self.freeWindowMaximum.height)
-        overlay.setFrame(frame, display: overlay.isVisible)
-    }
-
-    private func detachOverlayFromDock() {
-        guard dockAnchor != nil else { return }
-        let target = NSScreen.screens.contains(where: { $0.frame.intersects(freeWindowFrame) })
-            ? freeWindowFrame : Self.initialFrame(saved: persists)
-        dockAnchor = nil
-        plot.attachedToDock = false
-        overlay.minSize = Self.freeWindowMinimum
-        overlay.maxSize = Self.freeWindowMaximum
-        overlay.setFrame(target, display: overlay.isVisible)
-        freeWindowFrame = target
-    }
-
-    /// 贴 Dock 时只调整高度；手动模式保持原有的窗口缩放方式。
+    /// 自动布局只改频谱厚度；自由摆放时调整窗口尺寸并保存位置。
     func resizeWindow(_ size: CGSize) {
-        if prefs.followsDock {
+        switch prefs.desktopPosition {
+        case .dock:
             prefs.dockHeight = Double(size.height)
             return
+        case .edge:
+            prefs.desktopEdgeThickness = Double(size.height)
+            return
+        case .free:
+            break
         }
-        guard let screen = overlay.screen ?? NSScreen.main else { return }
+        guard let screen = layoutScreen else { return }
         let bounds = screen.visibleFrame.insetBy(dx: 8, dy: 8)
         let width = min(size.width, bounds.width), height = min(size.height, bounds.height)
-        let source = fullscreenRestoreFrame ?? overlay.frame
-        let x = max(bounds.minX, min(bounds.maxX - width, source.maxX - width))
-        let y = max(bounds.minY, min(bounds.maxY - height, source.minY))
+        let x = max(bounds.minX, min(bounds.maxX - width, freeWindowFrame.maxX - width))
+        let y = max(bounds.minY, min(bounds.maxY - height, freeWindowFrame.minY))
         let frame = CGRect(x: x, y: y, width: width, height: height)
-        if fullscreenRestoreFrame != nil {
-            fullscreenRestoreFrame = frame
+        if plot.pinnedToScreenEdge {
             freeWindowFrame = frame
-            updateFullscreenPlacement()
+            updateOverlayPlacement()
             saveFrame()
         } else {
             overlay.setFrame(frame, display: true)
@@ -579,7 +594,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
 
     /// 自动贴合产生的移动和缩放不覆盖用户上次摆放的窗口。
     private func rememberFreeWindowFrame() {
-        guard dockAnchor == nil, fullscreenRestoreFrame == nil else { return }
+        guard !applyingOverlayFrame, !plot.pinnedToScreenEdge, !plot.attachedToDock else { return }
         freeWindowFrame = overlay.frame
         guard persists else { return }
         frameSave?.cancel()
@@ -711,6 +726,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         checkWaveCorners()
         checkEdgePixels()
         await checkFullscreenBehavior()
+        checkDesktopPlacement()
         await checkPaletteFade()
         await checkScreenFrameRate()
         await checkIdleFade()
@@ -782,6 +798,14 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         overlay.setFrame(expected.offsetBy(dx: 0, dy: 10), display: true)
         try? await Task.sleep(for: .milliseconds(650))
         guard overlay.frame == expected else { fputs("UI smoke: Dock tracking failed\n", stderr); exit(1) }
+        prefs.desktopPosition = .edge
+        guard plot.pinnedToScreenEdge, !plot.attachedToDock, dockTimer == nil, freeWindowFrame == previous else {
+            fputs("UI smoke: desktop edge did not take over from Dock\n", stderr); exit(1)
+        }
+        prefs.desktopPosition = .dock
+        guard overlay.frame == expected, plot.attachedToDock, dockTimer != nil else {
+            fputs("UI smoke: desktop edge did not restore Dock layout\n", stderr); exit(1)
+        }
         prefs.followsDock = false
         guard overlay.frame == previous, dockTimer == nil, !plot.attachedToDock else {
             fputs("UI smoke: manual window restoration failed\n", stderr); exit(1)
@@ -866,6 +890,69 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         print("UI smoke: zero-pixel edge gaps, four orientations, 14 styles and screen-width scaling passed")
     }
 
+    /// 检查普通桌面三边定位、旧版 Dock 设置和退出全屏后的桌面布局。
+    private func checkDesktopPlacement() {
+        guard let screen = layoutScreen else { exit(1) }
+        let oldPrefs = prefs
+        let free = overlay.frame
+        let size = free.size
+
+        guard let defaults = try? JSONEncoder().encode(Preferences()),
+              var legacy = (try? JSONSerialization.jsonObject(with: defaults)) as? [String: Any] else { exit(1) }
+        legacy["savedFollowDock"] = true
+        guard let data = try? JSONSerialization.data(withJSONObject: legacy),
+              let migrated = try? JSONDecoder().decode(Preferences.self, from: data),
+              migrated.desktopPosition == .dock, migrated.desktopEdge == .top else {
+            fputs("UI smoke: legacy Dock preference migration failed\n", stderr); exit(1)
+        }
+
+        prefs.desktopPosition = .edge
+        prefs.desktopLength = 0.42
+        let usable = screen.visibleFrame
+        for edge in ScreenEdge.desktopChoices {
+            prefs.desktopEdge = edge
+            let frame = overlay.frame
+            let expected = edge.windowFrame(size: size, in: screen.frame, lengthFraction: 0.42, within: usable)
+            guard frame == expected, usable.contains(frame), plot.screenEdge == edge, !overlay.hasShadow,
+                  overlay.level == .normal, dockTimer == nil, freeWindowFrame == free else {
+                fputs("UI smoke: desktop edge \(edge.rawValue) mismatch \(frame) / \(expected)\n", stderr); exit(1)
+            }
+        }
+        prefs.desktopEdge = .top
+        resizeWindow(CGSize(width: 300, height: 48))
+        let desktop = overlay.frame
+        guard desktop.height == 48, desktop.maxY == usable.maxY, freeWindowFrame == free else { exit(1) }
+
+        updateFullscreenContext(screen)
+        guard overlay.frame == desktop, plot.screenEdge == .top else { exit(1) }
+        prefs.fullscreenEdge = .right
+        prefs.fullscreenLength = 0.35
+        prefs.fullscreenBehavior = .edge
+        let full = ScreenEdge.right.windowFrame(size: desktop.size, in: screen.frame, lengthFraction: 0.35)
+        guard overlay.frame == full, plot.screenEdge == .right, overlay.level == .floating else { exit(1) }
+        updateFullscreenContext(nil)
+        guard overlay.frame == desktop, plot.screenEdge == .top, prefs.desktopLength == 0.42 else { exit(1) }
+
+        captureSettings(named: "desktop-edge-settings")
+        prefs = oldPrefs
+        guard overlay.frame == free, !plot.pinnedToScreenEdge, freeWindowFrame == free else {
+            fputs("UI smoke: original free window was lost after desktop snapping\n", stderr); exit(1)
+        }
+        print("UI smoke: three desktop edges, thickness, legacy Dock migration and fullscreen override passed")
+    }
+
+    /// 保存设置布局的预览，便于确认各状态下展开的控件。
+    private func captureSettings(named name: String) {
+        guard let directory = smokeDirectory else { return }
+        let view = NSHostingView(rootView: SettingsView(model: self))
+        view.frame = CGRect(origin: .zero, size: view.fittingSize)
+        view.layoutSubtreeIfNeeded()
+        guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        let file = URL(fileURLWithPath: directory).appendingPathComponent(name + ".png")
+        try? bitmap.representation(using: .png, properties: [:])?.write(to: file)
+    }
+
     /// 验证全屏策略不覆盖手动位置，并能恢复 Dock 跟随。
     private func checkFullscreenBehavior() async {
         guard let screen = overlay.screen else { exit(1) }
@@ -878,7 +965,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         updateFullscreenContext(screen)
         try? await Task.sleep(for: .milliseconds(180))
         guard overlay.isVisible, overlay.alphaValue > 0, overlay.alphaValue < prefs.opacity else {
-            fputs("UI smoke: fullscreen hide did not fade\n", stderr); exit(1)
+            fputs("UI smoke: fullscreen hide did not fade (visible \(overlay.isVisible), alpha \(overlay.alphaValue), fullscreen \(fullscreenScreen != nil))\n", stderr); exit(1)
         }
         try? await Task.sleep(for: .milliseconds(300))
         guard !overlay.isVisible, clockRate == 0 else {
@@ -900,20 +987,11 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
             fputs("UI smoke: resized fullscreen window lost its edge\n", stderr); exit(1)
         }
         resizeWindow(original.size)
-        if let directory = smokeDirectory {
-            let view = NSHostingView(rootView: SettingsView(model: self))
-            view.frame = CGRect(origin: .zero, size: view.fittingSize)
-            view.layoutSubtreeIfNeeded()
-            if let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
-                view.cacheDisplay(in: view.bounds, to: bitmap)
-                let file = URL(fileURLWithPath: directory).appendingPathComponent("fullscreen-settings.png")
-                try? bitmap.representation(using: .png, properties: [:])?.write(to: file)
-            }
-        }
+        captureSettings(named: "fullscreen-settings")
         updateFullscreenContext(nil)
         try? await Task.sleep(for: .milliseconds(250))
-        guard overlay.frame == original, fullscreenRestoreFrame == nil,
-              !plot.pinnedToScreenEdge, overlay.level == .normal, overlay.isVisible else {
+        guard overlay.frame == original, !plot.pinnedToScreenEdge,
+              overlay.level == .normal, overlay.isVisible else {
             fputs("UI smoke: fullscreen restoration failed\n", stderr); exit(1)
         }
         prefs.followsDock = true

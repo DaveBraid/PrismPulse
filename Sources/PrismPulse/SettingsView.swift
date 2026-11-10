@@ -120,22 +120,39 @@ struct SettingsView: View {
                 HStack {
                     Text("悬浮窗").font(.headline)
                     Spacer()
-                    Toggle("跟随 Dock", isOn: $model.prefs.followsDock).toggleStyle(.checkbox)
-                    Menu(model.prefs.followsDock ? "窗口高度" : "窗口尺寸") {
-                        Button(model.prefs.followsDock ? "82 pt" : "小 · 300 × 82") {
-                            model.resizeWindow(CGSize(width: 300, height: 82))
-                        }
-                        Button(model.prefs.followsDock ? "124 pt" : "中 · 474 × 124") {
-                            model.resizeWindow(CGSize(width: 474, height: 124))
-                        }
-                        Button(model.prefs.followsDock ? "146 pt" : "宽 · 650 × 146") {
-                            model.resizeWindow(CGSize(width: 650, height: 146))
-                        }
-                        Button(model.prefs.followsDock ? "300 pt" : "方 · 300 × 300") {
-                            model.resizeWindow(CGSize(width: 300, height: 300))
-                        }
-                    }.fixedSize()
+                    windowSizeMenu
                 }
+                Grid(alignment: .leading, horizontalSpacing: 11, verticalSpacing: 9) {
+                    GridRow {
+                        rowLabel("桌面位置")
+                        Picker("桌面位置", selection: $model.prefs.desktopPosition) {
+                            ForEach(DesktopPosition.allCases) { Text($0.rawValue).tag($0) }
+                        }.pickerStyle(.segmented).labelsHidden()
+                    }
+                    if model.prefs.desktopPosition == .edge {
+                        GridRow {
+                            rowLabel("桌面贴边")
+                            edgeControls("桌面贴边", choices: ScreenEdge.desktopChoices,
+                                         edge: $model.prefs.desktopEdge, length: $model.prefs.desktopLength)
+                        }
+                    }
+                    GridRow {
+                        rowLabel("应用全屏时")
+                        Picker("应用全屏时", selection: $model.prefs.fullscreenBehavior) {
+                            Text("沿用桌面").tag(FullscreenBehavior.unchanged)
+                            Text("淡出隐藏").tag(FullscreenBehavior.hide)
+                            Text("单独贴边").tag(FullscreenBehavior.edge)
+                        }.pickerStyle(.segmented).labelsHidden()
+                    }
+                    if model.prefs.fullscreenBehavior == .edge {
+                        GridRow {
+                            rowLabel("全屏贴边")
+                            edgeControls("全屏贴边", choices: ScreenEdge.allCases,
+                                         edge: $model.prefs.fullscreenEdge, length: $model.prefs.fullscreenLength)
+                        }
+                    }
+                }
+                Text(desktopPositionHelp).font(.caption).foregroundStyle(.secondary)
                 HStack(spacing: 19) {
                     Toggle("置顶", isOn: $model.prefs.onTop)
                     Toggle("点击穿透", isOn: $model.prefs.clickThrough)
@@ -143,29 +160,6 @@ struct SettingsView: View {
                     Toggle("静音时淡出", isOn: $model.prefs.hidesWhenSilent)
                     Spacer()
                 }.toggleStyle(.checkbox)
-                HStack(spacing: 11) {
-                    Text("应用全屏时").foregroundStyle(.secondary)
-                    Picker("应用全屏时", selection: $model.prefs.fullscreenBehavior) {
-                        ForEach(FullscreenBehavior.allCases) { Text($0.rawValue).tag($0) }
-                    }.pickerStyle(.segmented).labelsHidden()
-                }
-                if model.prefs.fullscreenBehavior == .edge {
-                    HStack(spacing: 11) {
-                        Text("贴边方向").foregroundStyle(.secondary)
-                        Picker("贴边方向", selection: $model.prefs.fullscreenEdge) {
-                            ForEach(ScreenEdge.allCases) { Text($0.rawValue).tag($0) }
-                        }.pickerStyle(.segmented).labelsHidden()
-                        Text("退出全屏后恢复").font(.caption).foregroundStyle(.secondary)
-                    }
-                    HStack(spacing: 11) {
-                        Text("贴边长度").foregroundStyle(.secondary)
-                        Slider(value: $model.prefs.fullscreenLength, in: 0.1...1) {
-                            Text("贴边长度占屏幕宽度的比例")
-                        }.labelsHidden()
-                        Text("\(Int((model.prefs.fullscreenLength * 100).rounded()))% 屏宽")
-                            .monospacedDigit().frame(width: 66, alignment: .trailing)
-                    }
-                }
                 HStack(spacing: 11) {
                     Text("不透明度").foregroundStyle(.secondary)
                     Slider(value: $model.prefs.opacity, in: 0.12...1) { Text("窗口不透明度") }.labelsHidden()
@@ -180,10 +174,6 @@ struct SettingsView: View {
                     Text("\(Int(model.prefs.cornerRadius)) pt")
                         .monospacedDigit().frame(width: 38, alignment: .trailing)
                 }
-                Text(model.prefs.followsDock
-                     ? "Dock 位于屏幕底部时自动对齐。关闭后恢复手动位置。"
-                     : "拖动浮窗可移动；拖右下角可缩放。穿透开启后，可从菜单栏关回。")
-                    .font(.caption).foregroundStyle(.secondary)
             }
             .disabled(!model.prefs.placement.showsWindow)
 
@@ -220,6 +210,59 @@ struct SettingsView: View {
         .frame(width: 506)
         .background(Color(nsColor: .windowBackgroundColor))
         .fixedSize(horizontal: true, vertical: true)
+    }
+
+    private var desktopPositionHelp: String {
+        switch model.prefs.desktopPosition {
+        case .free: "拖动浮窗可移动，拖右下角可缩放。穿透开启后，可从菜单栏关回。"
+        case .dock: "Dock 位于屏幕底部时自动对齐。切回自由摆放后恢复原位置。"
+        case .edge: "顶部贴住菜单栏下沿，左右避开侧边 Dock。可在自由摆放时拖动换屏。"
+        }
+    }
+
+    private var windowSizeMenu: some View {
+        let position = model.prefs.desktopPosition
+        let heightOnly = position != .free
+        let title: String
+        switch position {
+        case .free: title = "窗口尺寸"
+        case .dock: title = "窗口高度"
+        case .edge: title = "贴边厚度"
+        }
+        return Menu(title) {
+            if position == .edge {
+                Button("48 pt") { model.resizeWindow(CGSize(width: 300, height: 48)) }
+            }
+            Button(heightOnly ? "82 pt" : "小 · 300 × 82") {
+                model.resizeWindow(CGSize(width: 300, height: 82))
+            }
+            Button(heightOnly ? "124 pt" : "中 · 474 × 124") {
+                model.resizeWindow(CGSize(width: 474, height: 124))
+            }
+            Button(heightOnly ? "146 pt" : "宽 · 650 × 146") {
+                model.resizeWindow(CGSize(width: 650, height: 146))
+            }
+            Button(heightOnly ? "300 pt" : "方 · 300 × 300") {
+                model.resizeWindow(CGSize(width: 300, height: 300))
+            }
+        }.fixedSize()
+    }
+
+    /// 桌面和全屏各自保存方向与长度，使用相同的紧凑布局。
+    private func edgeControls(_ label: String, choices: [ScreenEdge], edge: Binding<ScreenEdge>,
+                              length: Binding<Double>) -> some View {
+        HStack(spacing: 9) {
+            Picker("\(label)方向", selection: edge) {
+                ForEach(choices) { Text($0.rawValue).tag($0) }
+            }.pickerStyle(.segmented).labelsHidden()
+                .frame(width: 126, alignment: .leading)
+            Text("长度").font(.caption).foregroundStyle(.secondary)
+            Slider(value: length, in: ScreenEdge.lengthRange) {
+                Text("\(label)长度占屏幕宽度的比例")
+            }.labelsHidden()
+            Text("\(Int((length.wrappedValue * 100).rounded()))% 屏宽")
+                .monospacedDigit().frame(width: 63, alignment: .trailing)
+        }
     }
 
     private var statusBarSettings: some View {

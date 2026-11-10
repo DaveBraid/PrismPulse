@@ -4,35 +4,33 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>PrismPulse</title>
         <item>
-            <title>1.1.0</title>
-            <pubDate>Tue, 10 Nov 2026 19:57:44 +0800</pubDate>
-            <link>https://github.com/DaveBraid/PrismPulse/releases/tag/v1.1.0</link>
+            <title>1.2.0</title>
+            <pubDate>Wed, 11 Nov 2026 00:04:47 +0800</pubDate>
+            <link>https://github.com/DaveBraid/PrismPulse/releases/tag/v1.2.0</link>
             <sparkle:informationalUpdate>
                 <sparkle:belowVersion>102</sparkle:belowVersion>
             </sparkle:informationalUpdate>
-            <sparkle:version>110</sparkle:version>
-            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
+            <sparkle:version>120</sparkle:version>
+            <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.4</sparkle:minimumSystemVersion>
             <description sparkle:format="markdown">## 中文
 
-- **桌面贴边**。悬浮窗在普通桌面可贴左、上、右。长度按屏宽比例调整，厚度可单独设置。顶部贴住菜单栏下沿，左右避开侧边 Dock。
-- **独立的全屏设置**。全屏时可沿用桌面布局、淡出隐藏或另设贴边方向与长度。切回自由摆放会恢复原窗口位置。
-- **QQ 音乐封面取色**。在 QQ 音乐客户端播放歌曲并成为 macOS「正在播放」来源时，频谱自动提取封面颜色，换封面时平滑过渡。
+- **跟随系统播放封面**。频谱从 macOS「正在播放」当前会话取色，支持向系统提供封面或缩略图的播放器和浏览器。
+- **缺图时直接使用备用配色**。系统缺图或读图失败时，频谱切换到你选的备用配色。封面标识未变时复用色板。
 
-**安装与更新**。支持 macOS 14.4 及以上，包含 Apple Silicon 和 Intel 版本。1.0.2 用户可从菜单栏选择「检查更新…」。首次安装请下载 PrismPulse-macOS.zip，解压后将 App 拖入「应用程序」。
+**安装与更新**。支持 macOS 14.4 及以上，包含 Apple Silicon 和 Intel 版本。现有 1.1.0 用户可在菜单栏选择「检查更新…」。首次安装请下载 PrismPulse-macOS.zip，解压后将 App 拖入「应用程序」。
 
 ## English
 
-- **Desktop edge snapping.** Pin the floating visualizer to the left, top, or right edge. Set the length as a percentage of display width and adjust the thickness separately. The overlay fits beneath the menu bar and leaves space for a side Dock.
-- **Independent full-screen behavior.** Keep the desktop layout, fade out, or choose a separate edge and length. Free placement restores the previous window position.
-- **QQ Music artwork colors.** When the QQ Music desktop app is the active macOS Now Playing source, PrismPulse extracts a palette from the cover and blends smoothly between covers.
+- **Follow system artwork.** PrismPulse uses artwork from the current macOS Now Playing session, including covers and thumbnails published by players and browsers.
+- **Use the fallback palette when artwork is unavailable.** If artwork is missing or cannot be read, PrismPulse uses your chosen fallback palette. Unchanged artwork reuses its palette.
 
-**Install or update.** Requires macOS 14.4 or later and supports Apple silicon and Intel. Use Check for Updates in PrismPulse 1.0.2. For a new installation, download PrismPulse-macOS.zip, unzip it, and move the app to Applications.
+**Install or update.** Requires macOS 14.4 or later and supports Apple silicon and Intel. Use Check for Updates from PrismPulse 1.1.0. For a new installation, download PrismPulse-macOS.zip, unzip it, and move the app to Applications.
 </description>
-            <enclosure url="https://api.github.com/repos/DaveBraid/PrismPulse/releases/assets/731297424" length="2729643" type="application/octet-stream" sparkle:edSignature="mJK0RTuyyZjB4QNDEvEJyj0b1YZXqfkiFvtl4OSk1gM1z97ohk+d9Nr/OYDc7oO+SkfXPqa0xXmjh+19YxMzAA=="></enclosure>
+            <enclosure url="https://api.github.com/repos/DaveBraid/PrismPulse/releases/assets/732042249" length="2644500" type="application/octet-stream" sparkle:edSignature="aXdCNBhYoYFbzlywyoJVPr6gksvwJqFWYNuP6z1qtzjHholRsB0GXKqQDcZTmthUYDaXB7vLAkETuG0NWgRBAQ=="></enclosure>
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: m6aFG2KRyzLXAy5aAe+FOdF/R84cVIBh392QjsCDX9tiIuBQ7xMVWw/3WLlQfGHcajvB+FA0gpMNBYXPRXnZDQ==
-length: 2955
+edSignature: OWuqDLr+OEBv36d9nAPYMR3oCy1mubcpzwmidC6boxuethwVkbZSbG+h3Sfrb8o618MAUIPS4ciObiup9kzFAw==
+length: 2518
 -->

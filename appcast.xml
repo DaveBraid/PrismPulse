@@ -4,44 +4,35 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>PrismPulse</title>
         <item>
-            <title>1.0.2</title>
-            <pubDate>Sun, 08 Nov 2026 18:15:33 +0800</pubDate>
-            <link>https://github.com/DaveBraid/PrismPulse/releases/tag/v1.0.2</link>
+            <title>1.1.0</title>
+            <pubDate>Tue, 10 Nov 2026 19:57:44 +0800</pubDate>
+            <link>https://github.com/DaveBraid/PrismPulse/releases/tag/v1.1.0</link>
             <sparkle:informationalUpdate>
                 <sparkle:belowVersion>102</sparkle:belowVersion>
             </sparkle:informationalUpdate>
-            <sparkle:version>102</sparkle:version>
-            <sparkle:shortVersionString>1.0.2</sparkle:shortVersionString>
+            <sparkle:version>110</sparkle:version>
+            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.4</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown">PrismPulse 1.0.2 · 流光频谱
+            <description sparkle:format="markdown">## 中文
 
-- 频谱严格贴住屏幕边界，去掉内部留白。顶部向下展开，左右自动旋转为纵向并朝屏幕内部展开。
-- 「贴边长度」按屏幕宽度的 10%–100% 缩放，纵向长度限制在屏幕高度内。
-- 新增应用内自动检查更新与「检查更新…」。从 GitHub 获取新版本，经签名验证后下载、安装并重启。
-- 更新检查默认每天一次，可在设置中关闭。更新安装需要用户确认。
-- PrismPulse now draws flush against every screen edge, mirrors at the top, and rotates inward on the left and right.
-- Scale the length from 10% to 100% of the display width. Vertical length is capped at the display height.
-- Built-in Sparkle updates check GitHub for new signed releases and handle downloading, installation, and relaunch.
+- **桌面贴边**。悬浮窗在普通桌面可贴左、上、右。长度按屏宽比例调整，厚度可单独设置。顶部贴住菜单栏下沿，左右避开侧边 Dock。
+- **独立的全屏设置**。全屏时可沿用桌面布局、淡出隐藏或另设贴边方向与长度。切回自由摆放会恢复原窗口位置。
+- **QQ 音乐封面取色**。在 QQ 音乐客户端播放歌曲并成为 macOS「正在播放」来源时，频谱自动提取封面颜色，换封面时平滑过渡。
 
-需要 macOS 14.4 或更新版本。通用包支持 Apple Silicon 和 Intel。
-Requires macOS 14.4 or later. Universal build for Apple silicon and Intel.
+**安装与更新**。支持 macOS 14.4 及以上，包含 Apple Silicon 和 Intel 版本。1.0.2 用户可从菜单栏选择「检查更新…」。首次安装请下载 PrismPulse-macOS.zip，解压后将 App 拖入「应用程序」。
 
-0.7 及更早版本请先手动下载并安装 1.0，后续可在应用内更新。
-Users on 0.7 or earlier need to install 1.0 manually once to enable in-app updates.
+## English
 
-本版本采用临时签名，未经 Apple 公证。首次打开方式见 README。
-The app is ad hoc signed and has not been notarized by Apple. See the README for first-launch instructions.
+- **Desktop edge snapping.** Pin the floating visualizer to the left, top, or right edge. Set the length as a percentage of display width and adjust the thickness separately. The overlay fits beneath the menu bar and leaves space for a side Dock.
+- **Independent full-screen behavior.** Keep the desktop layout, fade out, or choose a separate edge and length. Free placement restores the previous window position.
+- **QQ Music artwork colors.** When the QQ Music desktop app is the active macOS Now Playing source, PrismPulse extracts a palette from the cover and blends smoothly between covers.
 
-修复 GitHub 更新入口的 504 兼容性问题，签名更新信息改为通过仓库原始文件获取。
-Fix feed delivery on networks where GitHub latest/download returns 504.
-
-安装包通过 GitHub 官方资产 API 匿名下载，兼容网页下载地址超时的网络。
-Update archives use GitHub's public asset API to avoid browser-download gateway timeouts.
+**Install or update.** Requires macOS 14.4 or later and supports Apple silicon and Intel. Use Check for Updates in PrismPulse 1.0.2. For a new installation, download PrismPulse-macOS.zip, unzip it, and move the app to Applications.
 </description>
-            <enclosure url="https://api.github.com/repos/DaveBraid/PrismPulse/releases/assets/723582676" length="2631752" type="application/octet-stream" sparkle:edSignature="xHTp96DzLG+BqClYq68d25nOeFv5hdBPEV4P4Zzs+kbw02QqJIskKb8UdM/QTalHYifUfN5pBLnW6SxumUfcDQ=="></enclosure>
+            <enclosure url="https://api.github.com/repos/DaveBraid/PrismPulse/releases/assets/731297424" length="2729643" type="application/octet-stream" sparkle:edSignature="mJK0RTuyyZjB4QNDEvEJyj0b1YZXqfkiFvtl4OSk1gM1z97ohk+d9Nr/OYDc7oO+SkfXPqa0xXmjh+19YxMzAA=="></enclosure>
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: c5oV4M8vtFn+vhsESyEE+0k9uVYcgMeYE3Nxkr5ADxAmYARdjxjbZX6l/oA2LfSPIR+JvUXvU+Zq8adwQLj9Dg==
-length: 3083
+edSignature: m6aFG2KRyzLXAy5aAe+FOdF/R84cVIBh392QjsCDX9tiIuBQ7xMVWw/3WLlQfGHcajvB+FA0gpMNBYXPRXnZDQ==
+length: 2955
 -->

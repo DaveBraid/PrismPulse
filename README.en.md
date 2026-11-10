@@ -15,7 +15,7 @@ PrismPulse is a live system audio visualizer for macOS. Let your music, videos, 
 - **Follow the Dock.** Keep the spectrum centered just above the bottom Dock. It follows the Dock's width and leaves room for its rounded corners. Set the height and corner radius separately. Pick the wave style (「涌浪」) and turn off the dark backdrop for a transparent wave that meets the top of the Dock.
 - **Extract colors from artwork.** PrismPulse blends colors from the current album cover or video thumbnail by default. Colors transition smoothly from the fallback palette and between covers. It uses the current macOS Now Playing artwork, including covers and thumbnails from apps that publish them to the system. Choose a fallback palette, a single color, or a custom two-color gradient.
 - **14 spectrum styles.** Choose from bars, beads, waves, and rings. The floating window supports always on top, click-through, opacity, and drag resizing. The menu bar spectrum supports adjustable width, automatic fit, and a fully transparent background.
-- **Fade out in silence.** The window fades away when playback goes quiet and fades in when sound returns. Choose a fixed frame rate or follow the current display. Audio checks slow down when idle.
+- **Fade out in silence.** The window fades away when playback goes quiet and fades in when sound returns. Capture stops after about two seconds without an active output stream and resumes when playback returns. Choose a fixed frame rate or follow the current display.
 - **Snap to a desktop edge.** Under 「悬浮窗 → 桌面位置」, choose 「贴边显示」 for the left, top, or right edge. The top meets the bottom of the menu bar, and the sides leave space for a side Dock. Set the length to 10%–100% of the display width, capped by the available space.
 - **Make room for full-screen apps.** Under 「应用全屏时」, keep the desktop layout, fade out, or set a separate edge and length. A separate edge draws flush against the physical display boundary. The top expands downward, and the sides rotate vertically and expand inward. The desktop layout returns when you exit full screen.
 - **Update in the app.** PrismPulse checks GitHub releases daily by default. You can also choose 「检查更新…」 in the menu or settings. Confirm installation to download, verify the signatures, replace the app, and relaunch. Automatic checks can be disabled in settings.
@@ -33,7 +33,7 @@ Requires **macOS 14.4 or later**. The universal download supports Apple silicon 
 
 1. Open [Releases](https://github.com/DaveBraid/PrismPulse/releases/latest) and download `PrismPulse-macOS.zip` from Assets.
 2. Unzip it, drag `PrismPulse.app` into Applications, and open it.
-3. Allow system audio recording. Click the waveform in the menu bar to open settings, then play some music or a video.
+3. Play some music or a video and allow system audio recording when prompted. Click the waveform in the menu bar to open settings.
 
 The release is ad hoc signed and has not been notarized by Apple. If macOS blocks the first launch and you have confirmed the download came from this repository, go to **System Settings → Privacy & Security** and choose **Open Anyway** after trying to open the app. [Apple's instructions](https://support.apple.com/en-us/102445)
 

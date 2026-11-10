@@ -355,7 +355,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         plot.needsDisplay = true
         menuPlot?.needsDisplay = true
         let active = prefs.capture && !demo
-        audioNote = demo ? "演示动画 · 无需音频权限" : active ? "正在连接系统音频" : "系统音频已暂停"
+        audioNote = demo ? "演示动画 · 无需音频权限" : active ? "正在检查系统音频" : "系统音频已暂停"
         updateOverlayVisibility(now: ProcessInfo.processInfo.systemUptime)
         tuneClock()
         capture.setActive(active) { [weak self] result in
@@ -364,12 +364,17 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
             case let .success(session?):
                 self.pcm = session.0
                 self.analyzer.reset(sampleRate: session.1)
-                self.audioNote = "等待系统声音"
+                self.audioNote = "正在读取系统音频"
                 self.tuneClock()
             case let .failure(error):
                 self.audioNote = error.localizedDescription
             case .success(nil):
-                break
+                self.pcm = nil
+                self.analyzer.reset(sampleRate: 48_000)
+                self.plot.needsDisplay = true
+                self.menuPlot?.needsDisplay = true
+                self.audioNote = "等待播放 · 采集已暂停"
+                self.tuneClock()
             }
         }
     }
@@ -486,8 +491,6 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         } else if let pcm {
             let result = analyzer.step(pcm, dt: dt)
             if result.audible { lastAudible = now }
-            let note = heardRecently(at: now) ? "正在读取系统音频" : "等待系统声音"
-            if audioNote != note { audioNote = note }
             dirty = result.changed
         }
         if advancePalette(at: now) { dirty = true }

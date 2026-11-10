@@ -78,21 +78,74 @@ final class TapSession {
 
 final class AudioCapture {
     private let queue = DispatchQueue(label: "local.prismpulse.hal", qos: .userInitiated)
+    private static let idleDelay = 2.0 // 秒，跨过换歌间隙并留出浮窗淡出的时间。
     private var session: TapSession?
+    private var activityTimer: DispatchSourceTimer?
+    private var lastOutput = -Double.infinity
+    private var requestedCapture: Bool?
     private var routeListener: AudioObjectPropertyListenerBlock?
 
-    /// 串行切换 Tap。输入为期望运行状态；完成后在主队列交回 PCM 管道。
+    /// 切换输出监控。启用时按播放状态建立或释放 Tap，并在主队列报告结果。
     func setActive(_ active: Bool, completion: @escaping (Result<(PCMBuffer, Double)?, Error>) -> Void) {
         queue.async { [self] in
-            session = nil
-            let result = Result<(PCMBuffer, Double)?, Error> {
-                guard active else { return nil }
-                let tap = try TapSession()
-                session = tap
-                return (tap.pcm, tap.sampleRate)
+            stopMonitoring()
+            guard active else { return }
+            let timer = DispatchSource.makeTimerSource(queue: queue)
+            timer.setEventHandler { [weak self] in
+                guard let self, let playing = Self.hasActiveOutput() else { return }
+                let now = ProcessInfo.processInfo.systemUptime
+                if playing { self.lastOutput = now }
+                let capture = now - self.lastOutput < Self.idleDelay
+                guard self.requestedCapture != capture else { return }
+                self.requestedCapture = capture // 启动失败后等下一次播放或手动重连，避免重复请求权限。
+                self.session = nil
+                let result = Result<(PCMBuffer, Double)?, Error> {
+                    guard capture else { return nil }
+                    let tap = try TapSession()
+                    self.session = tap
+                    return (tap.pcm, tap.sampleRate)
+                }
+                DispatchQueue.main.async { completion(result) }
             }
-            DispatchQueue.main.async { completion(result) }
+            timer.schedule(deadline: .now(), repeating: .milliseconds(200), leeway: .milliseconds(30))
+            activityTimer = timer
+            timer.activate()
         }
+    }
+
+    /// 停止输出检测并释放 Tap。所有状态只在 HAL 控制队列上更新。
+    private func stopMonitoring() {
+        activityTimer?.cancel()
+        activityTimer = nil
+        session = nil
+        lastOutput = -.infinity
+        requestedCapture = nil
+    }
+
+    /// 仅读取其他进程的输出流状态。音频服务切换时读取失败，保留当前采集状态。
+    private static func hasActiveOutput() -> Bool? {
+        let system = AudioObjectID(kAudioObjectSystemObject)
+        var list = address(kAudioHardwarePropertyProcessObjectList)
+        var bytes: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(system, &list, 0, nil, &bytes) == noErr else { return nil }
+        let stride = UInt32(MemoryLayout<AudioObjectID>.stride)
+        guard bytes >= stride else { return false }
+        var processes = [AudioObjectID](repeating: kAudioObjectUnknown, count: Int(bytes / stride))
+        guard AudioObjectGetPropertyData(system, &list, 0, nil, &bytes, &processes) == noErr else { return nil }
+
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        var runningOutput = address(kAudioProcessPropertyIsRunningOutput)
+        var processID = address(kAudioProcessPropertyPID)
+        for process in processes.prefix(Int(bytes / stride)) {
+            var running: UInt32 = 0
+            var size = UInt32(MemoryLayout<UInt32>.size)
+            guard AudioObjectGetPropertyData(process, &runningOutput, 0, nil, &size, &running) == noErr,
+                  running != 0 else { continue }
+            var pid: pid_t = 0
+            size = UInt32(MemoryLayout<pid_t>.size)
+            if AudioObjectGetPropertyData(process, &processID, 0, nil, &size, &pid) == noErr, pid != ownPID { return true }
+        }
+        return false
     }
 
     /// 监听默认输出变化。蓝牙切换时由界面控制器合并通知，再重建一次 Tap。
@@ -115,13 +168,17 @@ final class AudioCapture {
                 AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, queue, routeListener)
                 self.routeListener = nil
             }
-            session = nil
+            stopMonitoring()
             DispatchQueue.main.async(execute: completion)
         }
     }
 
     private static var outputAddress: AudioObjectPropertyAddress {
-        AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-                                   mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        address(kAudioHardwarePropertyDefaultOutputDevice)
+    }
+
+    private static func address(_ selector: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
+        AudioObjectPropertyAddress(mSelector: selector, mScope: kAudioObjectPropertyScopeGlobal,
+                                   mElement: kAudioObjectPropertyElementMain)
     }
 }

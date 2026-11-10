@@ -4,33 +4,33 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>PrismPulse</title>
         <item>
-            <title>1.2.0</title>
-            <pubDate>Wed, 11 Nov 2026 00:04:47 +0800</pubDate>
-            <link>https://github.com/DaveBraid/PrismPulse/releases/tag/v1.2.0</link>
+            <title>1.2.1</title>
+            <pubDate>Wed, 11 Nov 2026 00:34:01 +0800</pubDate>
+            <link>https://github.com/DaveBraid/PrismPulse/releases/tag/v1.2.1</link>
             <sparkle:informationalUpdate>
                 <sparkle:belowVersion>102</sparkle:belowVersion>
             </sparkle:informationalUpdate>
-            <sparkle:version>120</sparkle:version>
-            <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
+            <sparkle:version>121</sparkle:version>
+            <sparkle:shortVersionString>1.2.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.4</sparkle:minimumSystemVersion>
             <description sparkle:format="markdown">## 中文
 
-- **跟随系统播放封面**。频谱从 macOS「正在播放」当前会话取色，支持向系统提供封面或缩略图的播放器和浏览器。
-- **缺图时直接使用备用配色**。系统缺图或读图失败时，频谱切换到你选的备用配色。封面标识未变时复用色板。
+- **按需采集系统音频**。没有活跃输出流约 2 秒后，流光频谱会停止采集。播放恢复时自动重新采集，减少空闲时 macOS 录音指示紫点亮着的时间。
+- 播放器保持输出流时，即使无声，macOS 仍可能显示紫点。你也可以在菜单栏选择「暂停系统音频」。
 
-**安装与更新**。支持 macOS 14.4 及以上，包含 Apple Silicon 和 Intel 版本。现有 1.1.0 用户可在菜单栏选择「检查更新…」。首次安装请下载 PrismPulse-macOS.zip，解压后将 App 拖入「应用程序」。
+支持 macOS 14.4 及以上，包含 Apple Silicon 和 Intel 版本。已安装的用户可在菜单栏选择「检查更新…」。首次安装请下载 PrismPulse-macOS.zip，解压后将 App 拖入「应用程序」。
 
 ## English
 
-- **Follow system artwork.** PrismPulse uses artwork from the current macOS Now Playing session, including covers and thumbnails published by players and browsers.
-- **Use the fallback palette when artwork is unavailable.** If artwork is missing or cannot be read, PrismPulse uses your chosen fallback palette. Unchanged artwork reuses its palette.
+- **Capture system audio on demand.** PrismPulse stops capturing after about two seconds without an active output stream and resumes when playback returns. This reduces the time the macOS recording indicator stays on while idle.
+- A player that keeps its output stream open may keep the purple dot visible during silence. You can also pause system audio capture from the menu bar.
 
-**Install or update.** Requires macOS 14.4 or later and supports Apple silicon and Intel. Use Check for Updates from PrismPulse 1.1.0. For a new installation, download PrismPulse-macOS.zip, unzip it, and move the app to Applications.
+Requires macOS 14.4 or later and supports Apple silicon and Intel. Choose Check for Updates from the PrismPulse menu. For a new installation, download PrismPulse-macOS.zip, unzip it, and move the app to Applications.
 </description>
-            <enclosure url="https://api.github.com/repos/DaveBraid/PrismPulse/releases/assets/732042249" length="2644500" type="application/octet-stream" sparkle:edSignature="aXdCNBhYoYFbzlywyoJVPr6gksvwJqFWYNuP6z1qtzjHholRsB0GXKqQDcZTmthUYDaXB7vLAkETuG0NWgRBAQ=="></enclosure>
+            <enclosure url="https://api.github.com/repos/DaveBraid/PrismPulse/releases/assets/732163973" length="2649993" type="application/octet-stream" sparkle:edSignature="awbmLa+oHS6nv7yS3QSbdeynUBgP0K+bByFyom2wpRM6wAJNHgIgiNXpR0PBXlR038Hep1kFRY/NOShmNusbAA=="></enclosure>
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: OWuqDLr+OEBv36d9nAPYMR3oCy1mubcpzwmidC6boxuethwVkbZSbG+h3Sfrb8o618MAUIPS4ciObiup9kzFAw==
-length: 2518
+edSignature: GQ1PmaKfYrfpgKxry07MGNUaNatCQ1BuPZdoknA/5MWYcDDOMgRqRgbMpCX3Y0zg4GCTIJndRz3tcBfK5x2GDw==
+length: 2534
 -->

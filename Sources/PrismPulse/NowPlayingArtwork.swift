@@ -1,7 +1,7 @@
 import Foundation
 
 enum NowPlayingArtwork {
-    struct Snapshot: Decodable {
+    struct Snapshot: Decodable, Sendable {
         let sourceName: String?
         let key: String?
         let artwork: Data?

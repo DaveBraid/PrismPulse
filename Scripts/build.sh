@@ -26,6 +26,7 @@ cp "$bin/PrismPulse" "$bundle/Contents/MacOS/"
 cp Support/Info.plist "$bundle/Contents/"
 cp LICENSE "$bundle/Contents/Resources/LICENSE"
 cp "$sparkle/LICENSE" "$bundle/Contents/Resources/Sparkle-LICENSE"
+cp "$build_root/checkouts/PaletteKit/LICENSE" "$bundle/Contents/Resources/PaletteKit-LICENSE"
 if [[ -f Support/AppIcon.icns ]]; then cp Support/AppIcon.icns "$bundle/Contents/Resources/"; fi
 codesign --force --sign "${PRISMPULSE_SIGN_IDENTITY:--}" --timestamp=none "$bundle"
 codesign --verify --strict "$bundle"

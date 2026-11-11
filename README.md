@@ -13,7 +13,7 @@ PrismPulse 是 macOS 的实时系统音频频谱。让正在播放的音乐、�
 ## 特色功能
 
 - **跟随 Dock**。频谱居中贴在底部 Dock 上方，随 Dock 宽度伸缩，两侧给圆角留出空间。高度和圆角都能单独调。选「涌浪」并关闭「深色底板」，就能得到一条贴着 Dock 的透明彩色波形。
-- **自动提取封面颜色**。默认把当前专辑封面或视频缩略图配成渐变。备用配色到封面配色、换封面时都平滑过渡。读取 macOS「正在播放」当前会话的封面，支持提供系统封面的播放器和网页。封面不可用时使用备用配色，也可以自己设定单色或双色渐变。
+- **自动提取封面颜色**。从当前专辑封面或视频缩略图按面积提取主色和辅色。主色铺底，辅色随面积延展，灰度封面保留灰度。封面渐变和切歌过渡使用 OKLab 混色。读取 macOS「正在播放」当前会话的封面，支持提供系统封面的播放器和网页。封面不可用时使用备用配色，也可以自己设定单色或双色渐变。
 - **14 种频谱样式**。从光柱、珠链到波形和环形。悬浮窗支持置顶、点击穿透、透明度和拖动缩放。菜单栏频谱可调长度，支持自适应铺满和全透明背景。
 - **有声时跳动，安静时淡出**。静音后浮窗自动淡出，声音回来时淡入。没有活跃输出流约 2 秒后停止采集，播放恢复时自动继续。帧率可选固定档或「跟随屏幕」。
 - **桌面贴边**。在「设置 → 悬浮窗 → 桌面位置」选择「贴边显示」，频谱可以贴在左、上、右。顶部紧贴菜单栏下沿，左右为侧边 Dock 留出空间。长度按屏宽的 10%–100% 设置，受桌面可用空间限制。
@@ -55,7 +55,7 @@ gh release download --repo DaveBraid/PrismPulse --pattern PrismPulse-macOS.zip
 
 ## 从源码构建
 
-安装带 Swift 6 和 macOS 14.4 或更新 SDK 的 Xcode 或 Command Line Tools。首次构建会通过 Swift Package Manager 下载固定版本的 Sparkle 更新框架。
+安装带 Swift 6 和 macOS 14.4 或更新 SDK 的 Xcode 或 Command Line Tools。首次构建会通过 Swift Package Manager 下载固定版本的 Sparkle 和 PaletteKit。
 
 ```sh
 git clone https://github.com/DaveBraid/PrismPulse.git
@@ -83,6 +83,6 @@ git push origin main
 
 ## 许可证
 
-更新功能使用 [Sparkle](https://sparkle-project.org/)，安装包中包含其许可证。
+更新功能使用 [Sparkle](https://sparkle-project.org/)，封面取色使用 [PaletteKit](https://github.com/2dubu/PaletteKit)。安装包中包含两者的许可证。
 
 [MIT](LICENSE)

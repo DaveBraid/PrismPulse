@@ -1,6 +1,15 @@
 {
-  "originHash" : "92f3f407a8ca6158f7d0a7c736042525e3db59ffaa194c9dd7a9a40c98821478",
+  "originHash" : "bd5edb97c78b1dfd4e69b74d9bd77ea18cf229a94bce286eaf4369dab9451a5c",
   "pins" : [
+    {
+      "identity" : "palettekit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/2dubu/PaletteKit",
+      "state" : {
+        "revision" : "ab1d68e80a89e000db83bf9a1b3f707a69c5aba0",
+        "version" : "2.2.0"
+      }
+    },
     {
       "identity" : "sparkle",
       "kind" : "remoteSourceControl",

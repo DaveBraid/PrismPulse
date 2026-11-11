@@ -13,7 +13,7 @@ PrismPulse is a live system audio visualizer for macOS. Let your music, videos, 
 ## Features
 
 - **Follow the Dock.** Keep the spectrum centered just above the bottom Dock. It follows the Dock's width and leaves room for its rounded corners. Set the height and corner radius separately. Pick the wave style (「涌浪」) and turn off the dark backdrop for a transparent wave that meets the top of the Dock.
-- **Extract colors from artwork.** PrismPulse blends colors from the current album cover or video thumbnail by default. Colors transition smoothly from the fallback palette and between covers. It uses the current macOS Now Playing artwork, including covers and thumbnails from apps that publish them to the system. Choose a fallback palette, a single color, or a custom two-color gradient.
+- **Extract colors from artwork.** PrismPulse picks the main and accent colors from the current album cover or video thumbnail based on their coverage. The main color forms the base, the accent expands with its share, and grayscale covers stay grayscale. Artwork gradients and transitions use OKLab blending. PrismPulse uses the current macOS Now Playing artwork, including covers and thumbnails from apps that publish them to the system. Choose a fallback palette, a single color, or a custom two-color gradient.
 - **14 spectrum styles.** Choose from bars, beads, waves, and rings. The floating window supports always on top, click-through, opacity, and drag resizing. The menu bar spectrum supports adjustable width, automatic fit, and a fully transparent background.
 - **Fade out in silence.** The window fades away when playback goes quiet and fades in when sound returns. Capture stops after about two seconds without an active output stream and resumes when playback returns. Choose a fixed frame rate or follow the current display.
 - **Snap to a desktop edge.** Under 「悬浮窗 → 桌面位置」, choose 「贴边显示」 for the left, top, or right edge. The top meets the bottom of the menu bar, and the sides leave space for a side Dock. Set the length to 10%–100% of the display width, capped by the available space.
@@ -57,7 +57,7 @@ Audio analysis and artwork color extraction run locally. PrismPulse captures sys
 
 ## Build from source
 
-Install Xcode or Command Line Tools with Swift 6 and the macOS 14.4 SDK or later. The first build downloads a pinned version of the Sparkle update framework through Swift Package Manager.
+Install Xcode or Command Line Tools with Swift 6 and the macOS 14.4 SDK or later. The first build downloads pinned versions of Sparkle and PaletteKit through Swift Package Manager.
 
 ```sh
 git clone https://github.com/DaveBraid/PrismPulse.git
@@ -85,6 +85,6 @@ Increment `CFBundleVersion` and update `CFBundleShortVersionString` for each rel
 
 ## License
 
-Updates use [Sparkle](https://sparkle-project.org/). Its license is included in the application bundle.
+Updates use [Sparkle](https://sparkle-project.org/) and artwork color extraction uses [PaletteKit](https://github.com/2dubu/PaletteKit). Their licenses are included in the application bundle.
 
 [MIT](LICENSE)

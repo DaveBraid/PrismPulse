@@ -44,31 +44,30 @@ struct ArtworkUpdate: Equatable, Sendable {
         guard enabled, !busy else { return }
         busy = true
         let ticket = revision
-        reader.read { [weak self] update in
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.busy = false
-                guard self.enabled else { return }
-                if ticket == self.revision { self.publish(update) }
-                else { self.refresh() }
-            }
+        Task(priority: .utility) { [weak self, reader] in
+            let update = await reader.read()
+            guard let self else { return }
+            self.busy = false
+            guard self.enabled else { return }
+            if ticket == self.revision { self.publish(update) }
+            else { self.refresh() }
         }
     }
 }
 
-private final class ArtworkReader: @unchecked Sendable {
+private actor ArtworkReader {
     private let queue = DispatchQueue(label: "local.prismpulse.artwork", qos: .utility)
     private var cache: (key: String, palette: SpectrumPalette)?
 
-    /// 在后台读取系统封面，避免占用动画和界面的主线程。
-    func read(completion: @escaping @Sendable (ArtworkUpdate) -> Void) {
-        queue.async { [self] in completion(currentArtwork()) }
-    }
-
     /// 先按封面标识复用色板，缺少标识时比较图像哈希。
     /// 读图或取色失败时返回空色板，由设置中的备用配色接管。
-    private func currentArtwork() -> ArtworkUpdate {
-        guard let cover = NowPlayingArtwork.read(reusing: cache?.key),
+    func read() async -> ArtworkUpdate {
+        let cachedKey = cache?.key
+        // 等待系统会话的阻塞调用继续放在专用队列。
+        let snapshot = await withCheckedContinuation { continuation in
+            queue.async { continuation.resume(returning: NowPlayingArtwork.read(reusing: cachedKey)) }
+        }
+        guard let cover = snapshot,
               let key = cover.key ?? cover.artwork.map({ "hash:" + Data(SHA256.hash(data: $0)).base64EncodedString() })
         else { return .waiting }
 
@@ -76,7 +75,7 @@ private final class ArtworkReader: @unchecked Sendable {
         if let cached = cache, cached.key == key {
             palette = cached.palette
         } else {
-            guard let data = cover.artwork, let extracted = SpectrumPalette.artwork(data) else { return .waiting }
+            guard let data = cover.artwork, let extracted = await SpectrumPalette.artwork(data) else { return .waiting }
             palette = extracted
             cache = (key, extracted)
         }

@@ -1,36 +1,36 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><!-- sparkle-sign-warning:
+<?xml version="1.0" standalone="yes"?><!-- sparkle-sign-warning:
 IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
 --><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <title>PrismPulse</title>
         <item>
-            <title>1.3.0</title>
-            <pubDate>Thu, 12 Nov 2026 01:44:59 +0800</pubDate>
-            <link>https://github.com/DaveBraid/PrismPulse/releases/tag/v1.3.0</link>
+            <title>1.4.0</title>
+            <pubDate>Thu, 12 Nov 2026 12:49:16 +0800</pubDate>
+            <link>https://github.com/DaveBraid/PrismPulse/releases/tag/v1.4.0</link>
             <sparkle:informationalUpdate>
                 <sparkle:belowVersion>102</sparkle:belowVersion>
             </sparkle:informationalUpdate>
-            <sparkle:version>130</sparkle:version>
-            <sparkle:shortVersionString>1.3.0</sparkle:shortVersionString>
+            <sparkle:version>140</sparkle:version>
+            <sparkle:shortVersionString>1.4.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.4</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown">## 中文
+            <description sparkle:format="markdown"><![CDATA[## 中文
 
-- **封面取色改为主色与辅色。** 按封面中的像素面积选色，保留暗色、低饱和色和灰度。辅色在频谱末端覆盖更大的范围，比例随封面颜色面积调整。
-- **封面渐变与切歌用 OKLab 混色。** 同一张封面复用已缓存的色板，切换封面保留 0.65 秒过渡。
+- **封面辅色随音乐移动。** 使用「封面取色」时，辅色会随低、中、高频的强弱平滑移动。默认横向渐变下，低频偏左，中频居中，高频偏右。辅色在封面中占比越大，延展越宽。
+- **适用于浮窗、菜单栏和贴边显示。** 播放时复用现有频谱数据与渐变，切歌保留平滑过渡。
 
 支持 macOS 14.4 及以上，包含 Apple Silicon 和 Intel 版本。已安装的用户可在菜单栏选择「检查更新…」。首次安装请下载 PrismPulse-macOS.zip，解压后将 App 拖入「应用程序」。
 
 ## English
 
-- **Artwork palettes now use main and accent colors.** Colors are selected by how much of the artwork they cover, preserving dark tones, muted colors, and grayscale. The accent takes up more space at the end of the spectrum, with its share adjusted to the artwork.
-- **Artwork gradients and track transitions use OKLab blending.** PrismPulse reuses the cached palette for the same cover and keeps the 0.65-second transition between covers.
+- **Artwork accents move with the music.** In artwork color mode, the accent glides with the balance of bass, mids, and treble. With a horizontal gradient, bass pulls it left, mids bring it toward the center, and treble pulls it right. An accent that covers more of the artwork spans a wider area.
+- **Works in floating windows, the menu bar, and screen-edge layouts.** PrismPulse reuses the existing spectrum data and gradient during playback and blends smoothly between covers.
 
-Requires macOS 14.4 or later and supports Apple silicon and Intel. Choose Check for Updates from the PrismPulse menu. For a new installation, download PrismPulse-macOS.zip, unzip it, and move the app to Applications.
-</description>
-            <enclosure url="https://api.github.com/repos/DaveBraid/PrismPulse/releases/assets/736381197" length="2926234" type="application/octet-stream" sparkle:edSignature="2+e5baJxPIxaF9zcfl/wd8EUwmu4F+KSPEd9TgrTKl4LPyoOF68CCoS89ER0Q5wRmpT9oL/mC0Vrn6XYdfwSDQ=="></enclosure>
+Requires macOS 14.4 or later and supports Apple silicon and Intel. Choose Check for Updates from the PrismPulse menu to update. For a new installation, download PrismPulse-macOS.zip, unzip it, and move the app to Applications.
+]]></description>
+            <enclosure url="https://github.com/DaveBraid/PrismPulse/releases/download/v1.4.0/PrismPulse-macOS.zip" length="2933353" type="application/octet-stream" sparkle:edSignature="nePiKyyzqQUShLCVGpHEa1vevMt4vh/5gvEf/6tEp+g+fkXuMUmJfFdDviUTGCxbxoNv+bt4LeDJIU0aipr+CQ=="></enclosure>
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: 3Utv3fRQmBceRnBaJ5J6mp1it05qdkMXp4OvLE1gvzIQuJExwzDaQUzQ2E8gjQO7Ng69ywMbPqMOdpU0tn56BA==
-length: 2590
+edSignature: 1Gqg2B0QGhxj9FQFAwUiIPCrZ7JPaM++ViEP3OyHTjaQSYuU2zVYdciRsxGbw94dfuxI0TbX7wO2MLVOblUbDQ==
+length: 2683
 -->

@@ -26,7 +26,14 @@ public struct RGB: Equatable, Codable, Sendable {
 
 public struct SpectrumPalette: Equatable, Sendable {
     public var colors: [RGB]
-    public init(_ colors: [RGB]) { self.colors = colors }
+    public let accentWidth: Double? // 可移动辅色占渐变轴的比例。空值表示固定配色。
+
+    public init(_ colors: [RGB]) { self.init(colors, accentWidth: nil) }
+
+    private init(_ colors: [RGB], accentWidth: Double?) {
+        self.colors = colors
+        self.accentWidth = accentWidth
+    }
 
     public static let aurora = SpectrumPalette([RGB(hex: 0x55F0D2), RGB(hex: 0x64A4FF), RGB(hex: 0xDB83FF)])
     public static let dusk = SpectrumPalette([RGB(hex: 0xFF8D69), RGB(hex: 0xEF64B2), RGB(hex: 0x9979FF)])
@@ -34,20 +41,36 @@ public struct SpectrumPalette: Equatable, Sendable {
     public static let lagoon = SpectrumPalette([RGB(hex: 0x30BAFF), RGB(hex: 0x44E8D4), RGB(hex: 0xC0FF7B)])
     public static let silver = SpectrumPalette([RGB(hex: 0x8295B1), RGB(hex: 0xD9E4F0), RGB(hex: 0xF7FBFF)])
 
-    /// 在相同位置采样当前和目标渐变，再用 OKLab 混合，保持切歌中断时连续。
-    public func blended(to target: SpectrumPalette, progress: Double) -> SpectrumPalette {
+    /// 输入目标、进度和当前辅色中心。按同一位置混合颜色，保持切歌中断时连续。
+    public func blended(to target: SpectrumPalette, progress: Double, accentPosition: Double = 0.5) -> SpectrumPalette {
         guard progress > 0 else { return self }
         guard progress < 1, !colors.isEmpty, !target.colors.isEmpty else { return target }
+        let width: Double?
+        if let from = accentWidth, let to = target.accentWidth {
+            width = from + (to - from) * progress
+        } else {
+            width = nil
+        }
+        // 两边都有辅色时直接混合色标。遇到固定配色时在相同画布位置取样。
+        let center = width == nil ? accentPosition : nil
         let count = max(colors.count, target.colors.count)
         return SpectrumPalette((0..<count).map { i in
             let position = Double(i) / Double(max(1, count - 1))
-            let a = sampled(at: position), b = target.sampled(at: position)
+            let a = sampled(at: position, accentPosition: center)
+            let b = target.sampled(at: position, accentPosition: center)
             return a == b ? a : OKLab(a).mixed(with: OKLab(b), fraction: progress).sRGB
-        })
+        }, accentWidth: width)
     }
 
-    private func sampled(at position: Double) -> RGB {
-        let offset = position * Double(colors.count - 1)
+    /// 将画布位置换算为色标位置并插值；渐变两端延用边缘颜色。
+    private func sampled(at position: Double, accentPosition: Double?) -> RGB {
+        let location: Double
+        if let accentPosition, let accentWidth {
+            location = min(1, max(0, (position - accentPosition) / accentWidth + 0.5))
+        } else {
+            location = position
+        }
+        let offset = location * Double(colors.count - 1)
         let index = Int(offset)
         let a = colors[index], b = colors[min(index + 1, colors.count - 1)]
         let fraction = offset - Double(index)
@@ -115,25 +138,14 @@ public struct SpectrumPalette: Equatable, Sendable {
         let secondary = swatches.dropFirst().first {
             Double($0.population) / total >= 0.05 && $0.color.distance(to: primary.color) >= 0.09
         }
-        let accent: OKLab
-        let transitionStart: Double
-        let transitionWidth: Double
-        if let secondary {
-            let share = Double(secondary.population) / total
-            accent = secondary.color.withVisibleLightness
-            transitionStart = max(0.38, 0.72 - 0.65 * share) // 辅色面积越大，越早进入过渡。
-            transitionWidth = 0.22
-        } else {
-            // 单色封面沿用原色相，只做明度变化。
-            accent = OKLab(min(0.97, base.l + 0.075), base.a, base.b)
-            transitionStart = 0
-            transitionWidth = 1
-        }
-        // 预采样 OKLab 渐变，绘制时继续复用普通的 Core Graphics 渐变。
+        let accent = secondary?.color.withVisibleLightness ?? OKLab(min(0.97, base.l + 0.075), base.a, base.b)
+        let accentWidth = secondary.map { 0.40 + 0.50 * Double($0.population) / total } // 辅色面积越大，延展越宽。
+        // 预采样两侧向主色过渡的色标。只有一种颜色时保留同色相的明度渐变。
         return SpectrumPalette((0...32).map { index in
             let position = Double(index) / 32
-            let fraction = min(1, max(0, (position - transitionStart) / transitionWidth))
+            let feather = min(1, min(position, 1 - position) / 0.32)
+            let fraction = accentWidth == nil ? position : feather * feather * (3 - 2 * feather)
             return base.mixed(with: accent, fraction: fraction).sRGB
-        })
+        }, accentWidth: accentWidth)
     }
 }

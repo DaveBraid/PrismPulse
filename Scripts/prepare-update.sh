@@ -16,8 +16,7 @@ version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/
 /usr/bin/codesign --verify --deep --strict --all-architectures "$app"
 architectures="$(xcrun lipo -archs "$app/Contents/MacOS/PrismPulse")"
 [[ "$architectures" == 'x86_64 arm64' || "$architectures" == 'arm64 x86_64' ]]
-public_key="$("$tools/generate_keys" --account "$account" -p)"
-[[ "$public_key" == "$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$app/Contents/Info.plist")" ]]
+download_prefix="https://github.com/DaveBraid/PrismPulse/releases/download/v$version/"
 
 output="$PWD/build/releases/v$version"
 [[ ! -e "$output" ]]
@@ -28,9 +27,9 @@ trap 'rm -rf -- "$staging"' EXIT
 cp "$notes" "$staging/PrismPulse-macOS.md"
 # 签署安装包及更新信息，私钥始终由钥匙串提供。
 "$tools/generate_appcast" --account "$account" --maximum-deltas 0 --embed-release-notes --informational-update-versions '<102' \
-    --download-url-prefix "https://github.com/DaveBraid/PrismPulse/releases/download/v$version/" \
+    --download-url-prefix "$download_prefix" \
     --link "https://github.com/DaveBraid/PrismPulse/releases/tag/v$version" "$staging"
-"$tools/sign_update" --account "$account" --verify "$staging/appcast.xml"
+swift Scripts/verify-update.swift "$app/Contents/Info.plist" "$staging" "${download_prefix}PrismPulse-macOS.zip"
 (
     cd "$staging"
     shasum -a 256 PrismPulse-macOS.zip > SHA256SUMS

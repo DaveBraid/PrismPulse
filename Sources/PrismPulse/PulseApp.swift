@@ -337,7 +337,8 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         guard let from = paletteFrom else { return false }
         let progress = min(1, max(0, (now - paletteStarted) / Self.paletteDuration))
         let eased = progress * progress * (3 - 2 * progress)
-        palette = from.blended(to: paletteTarget, progress: eased)
+        palette = from.blended(to: paletteTarget, progress: eased,
+                               accentPosition: analyzer.frame.accentPosition)
         plot?.setPalette(palette)
         menuPlot?.setPalette(palette)
         if progress >= 1 { paletteFrom = nil }
@@ -492,6 +493,10 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
             let result = analyzer.step(pcm, dt: dt)
             if result.audible { lastAudible = now }
             dirty = result.changed
+            if (paletteTarget.accentWidth != nil || paletteFrom?.accentWidth != nil),
+               heardRecently(at: now), analyzer.updateAccentPosition(dt: dt) {
+                dirty = true
+            }
         }
         if advancePalette(at: now) { dirty = true }
         updateOverlayVisibility(now: now, elapsed: dt)

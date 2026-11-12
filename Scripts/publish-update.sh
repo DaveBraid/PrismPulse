@@ -7,32 +7,25 @@ if [[ $# != 2 ]]; then
 fi
 directory="$1"
 notes="$2"
-tools="${SPARKLE_TOOLS_DIR:-$PWD/.build/artifacts/sparkle/Sparkle/bin}"
 repo="DaveBraid/PrismPulse"
 tag="$(basename "$directory")"
 [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-[[ -f "$directory/PrismPulse-macOS.zip" && -f "$directory/appcast.xml" && -f "$notes" ]]
+[[ -f "$directory/PrismPulse-macOS.zip" && -f "$directory/SHA256SUMS" && -f "$directory/appcast.xml" && -f "$notes" ]]
 test -z "$(git status --porcelain)"
 commit="$(git rev-parse HEAD)"
 [[ "$(git ls-remote origin refs/heads/main | cut -f 1)" == "$commit" ]]
-gh release create "$tag" "$directory/PrismPulse-macOS.zip" "$directory/SHA256SUMS" \
+download_url="https://github.com/$repo/releases/download/$tag/PrismPulse-macOS.zip"
+swift Scripts/verify-update.swift Support/Info.plist "$directory" "$download_url"
+gh release create "$tag" "$directory/PrismPulse-macOS.zip" "$directory/SHA256SUMS" "$directory/appcast.xml" \
     --repo "$repo" --target "$commit" --title "PrismPulse ${tag#v}" --notes-file "$notes" --draft
-asset="$(gh release view "$tag" --repo "$repo" --json assets --jq '.assets[] | select(.name=="PrismPulse-macOS.zip") | .apiUrl')"
-[[ "$asset" == https://api.github.com/repos/DaveBraid/PrismPulse/releases/assets/* ]]
-# 使用官方资产 API，更新客户端无需登录 GitHub。
-python3 - "$directory/appcast.xml" "$asset" <<'PY'
-import sys
-import xml.etree.ElementTree as ET
-path, url = sys.argv[1:]
-ET.register_namespace("sparkle", "http://www.andymatuschak.org/xml-namespaces/sparkle")
-tree = ET.parse(path)
-tree.find("./channel/item/enclosure").set("url", url)
-tree.write(path, encoding="utf-8", xml_declaration=True)
-PY
-"$tools/sign_update" --account local.ethanlee.PrismPulse "$directory/appcast.xml"
-"$tools/sign_update" --account local.ethanlee.PrismPulse --verify "$directory/appcast.xml"
-gh release upload "$tag" "$directory/appcast.xml" --repo "$repo"
 gh release edit "$tag" --repo "$repo" --draft=false --latest
+
+# 公开安装包可免登录下载后，再启用应用内更新。
+downloaded="$(mktemp -t prismpulse-download)"
+trap 'rm -f -- "$downloaded"' EXIT
+curl --disable --fail --silent --show-error --location --retry 3 --retry-all-errors --retry-max-time 20 --max-time 15 \
+    --header 'Accept: application/octet-stream' --output "$downloaded" "$download_url"
+cmp "$directory/PrismPulse-macOS.zip" "$downloaded"
 cp "$directory/appcast.xml" appcast.xml
 git add -- appcast.xml
 git commit -m "Publish signed update feed for $tag"

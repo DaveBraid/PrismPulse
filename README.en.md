@@ -13,7 +13,7 @@ PrismPulse is a live system audio visualizer for macOS. Let your music, videos, 
 ## Features
 
 - **Follow the Dock.** Keep the spectrum centered just above the bottom Dock. It follows the Dock's width and leaves room for its rounded corners. Set the height and corner radius separately. Pick the wave style (「涌浪」) and turn off the dark backdrop for a transparent wave that meets the top of the Dock.
-- **Extract colors from artwork.** PrismPulse picks the main and accent colors from the current album cover or video thumbnail based on their coverage. The main color forms the base, the accent expands with its share, and grayscale covers stay grayscale. Artwork gradients and transitions use OKLab blending. PrismPulse uses the current macOS Now Playing artwork, including covers and thumbnails from apps that publish them to the system. Choose a fallback palette, a single color, or a custom two-color gradient.
+- **Extract colors from artwork.** PrismPulse picks the main and accent colors from the current album cover or video thumbnail based on their coverage. The main color forms the base. The accent glides with the dominant frequency band and grows wider with its share of the artwork. Grayscale covers stay grayscale. Artwork gradients and transitions use OKLab blending. PrismPulse uses the current macOS Now Playing artwork, including covers and thumbnails from apps that publish them to the system. Choose a fallback palette, a single color, or a custom two-color gradient.
 - **14 spectrum styles.** Choose from bars, beads, waves, and rings. The floating window supports always on top, click-through, opacity, and drag resizing. The menu bar spectrum supports adjustable width, automatic fit, and a fully transparent background.
 - **Fade out in silence.** The window fades away when playback goes quiet and fades in when sound returns. Capture stops after about two seconds without an active output stream and resumes when playback returns. Choose a fixed frame rate or follow the current display.
 - **Snap to a desktop edge.** Under 「悬浮窗 → 桌面位置」, choose 「贴边显示」 for the left, top, or right edge. The top meets the bottom of the menu bar, and the sides leave space for a side Dock. Set the length to 10%–100% of the display width, capped by the available space.
@@ -72,7 +72,7 @@ Implementation references include [Apple Core Audio Taps](https://developer.appl
 
 ## Publish future updates
 
-Commit the source, prepare a universal arm64/x86_64 app bundle and release notes, then run the following scripts. They sign the assets, publish anonymous downloads through GitHub's official asset API, and update the signed feed.
+Commit the source and prepare a universal arm64/x86_64 app bundle and release notes. The preparation script uses the Keychain to sign the update. The publishing script verifies the archive and feed with the app's public key, checks that the GitHub download works without signing in, and then enables in-app updates.
 
 ```sh
 ./Scripts/prepare-update.sh build/PrismPulse.app release-notes.md
@@ -81,7 +81,7 @@ git push origin main
 ./Scripts/publish-update.sh "build/releases/v$version" release-notes.md
 ```
 
-Increment `CFBundleVersion` and update `CFBundleShortVersionString` for each release. The private update-signing key stays in the macOS login Keychain under `local.ethanlee.PrismPulse`. Keep that key and the app's public key for subsequent releases. The script uses Sparkle's SwiftPM tools by default. Set `SPARKLE_TOOLS_DIR` to use another tool directory.
+Increment `CFBundleVersion` and update `CFBundleShortVersionString` for each release. The private update-signing key stays in the macOS login Keychain under `local.ethanlee.PrismPulse`. Keep that key and the app's public key for subsequent releases. The signing script uses Sparkle's SwiftPM tools by default. Set `SPARKLE_TOOLS_DIR` to use another tool directory.
 
 ## License
 

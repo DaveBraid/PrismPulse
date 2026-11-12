@@ -25,6 +25,7 @@ public final class PCMBuffer: @unchecked Sendable {
 public final class SpectrumFrame {
     public fileprivate(set) var levels: [Float]
     public fileprivate(set) var peaks: [Float]
+    public fileprivate(set) var accentPosition = 0.5
 
     public init(levels: [Float], peaks: [Float]? = nil) {
         precondition(!levels.isEmpty && (peaks == nil || peaks?.count == levels.count))
@@ -166,6 +167,27 @@ public final class SpectrumAnalyzer {
             if frame.levels[i] != old || frame.peaks[i] != oldPeak { changed = true }
         }
         return (audible, changed)
+    }
+
+    /// 复用本帧的柱高，输入为经过的秒数。辅色位置改变时返回 true。
+    public func updateAccentPosition(dt: Double) -> Bool {
+        var total = 0.0
+        var weightedPosition = 0.0
+        for (level, frequency) in zip(frame.levels, frequencies) where level > 0.12 {
+            let amplitude = Double(level) - 0.12  // 忽略低能量频带。
+            let squared = amplitude * amplitude
+            let weight = squared * squared      // 让主导频段对位置的影响更明显。
+            let position = frequency < 240 ? 0.22 : (frequency < 2_200 ? 0.50 : 0.78)
+            total += weight
+            weightedPosition += position * weight
+        }
+        guard total > 0.001 else { return false } // 静音或信号太弱时保留位置。
+        let target = weightedPosition / total
+        let previous = frame.accentPosition
+        let response = 1 - exp(-min(0.25, max(0, dt)) / 0.32) // 按时间平滑，适配不同帧率。
+        frame.accentPosition = abs(target - previous) < 0.001
+            ? target : previous + (target - previous) * response
+        return frame.accentPosition != previous
     }
 
     /// 使用固定工作区执行加窗实数 FFT，输出各线性频点的功率。

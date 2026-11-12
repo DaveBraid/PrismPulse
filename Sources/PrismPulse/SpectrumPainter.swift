@@ -5,6 +5,7 @@ import SpectrumCore
 final class SpectrumPainter {
     private var palette: SpectrumPalette?
     private var gradient: CGGradient?
+    private var accentPosition = 0.5
     private var solid = RGB(hex: 0x54F1CE).cgColor
     private var radial: [CGPoint] = []
     private var menuLevels = [Float](repeating: 0, count: 12)
@@ -23,6 +24,7 @@ final class SpectrumPainter {
     func draw(_ frame: SpectrumFrame, in context: CGContext, rect: CGRect, style: SpectrumStyle,
               vertical: Bool, compact: Bool, cornerRadius: CGFloat = 0, edgeAligned: Bool = false) {
         guard rect.width > 4, rect.height > 4 else { return }
+        accentPosition = frame.accentPosition
         let statusStyle = style == .orbit || style == .halo ? .mirror : style
         let count = max(4, Int(rect.width / 4.25))
         if !compact || count >= frame.levels.count {
@@ -58,8 +60,13 @@ final class SpectrumPainter {
         context.addPath(path)
         if let gradient {
             context.clip()
-            let start = CGPoint(x: rect.minX, y: vertical ? rect.minY : rect.midY)
-            let end = CGPoint(x: vertical ? rect.minX : rect.maxX, y: vertical ? rect.maxY : rect.midY)
+            // 移动渐变端点，复用缓存的色标。
+            let lower = CGFloat(palette?.accentWidth.map { accentPosition - $0 / 2 } ?? 0)
+            let upper = CGFloat(palette?.accentWidth.map { accentPosition + $0 / 2 } ?? 1)
+            let start = CGPoint(x: vertical ? rect.minX : rect.minX + rect.width * lower,
+                                y: vertical ? rect.minY + rect.height * lower : rect.midY)
+            let end = CGPoint(x: vertical ? rect.minX : rect.minX + rect.width * upper,
+                              y: vertical ? rect.minY + rect.height * upper : rect.midY)
             context.drawLinearGradient(gradient, start: start, end: end,
                                        options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
         } else {

@@ -20,7 +20,9 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
                 updateDockTracking()
             }
             applyAppearance()
-            if oldValue.capture != prefs.capture { restartAudio() }
+            let fullscreenHideChanged = fullscreenScreen != nil &&
+                (oldValue.fullscreenBehavior == .hide) != (prefs.fullscreenBehavior == .hide)
+            if oldValue.capture != prefs.capture || fullscreenHideChanged { restartAudio() }
             if oldValue.colorMode != prefs.colorMode || oldValue.capture != prefs.capture { updateArtworkMonitor() }
             if oldValue.fps != prefs.fps || oldValue.placement != prefs.placement ||
                oldValue.hidesWhenSilent != prefs.hidesWhenSilent { tuneClock() }
@@ -53,6 +55,8 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
     private var dockAnchor: DockAlignment.Anchor?
     private var dockTimer: Timer?
     private var fullscreenScreen: NSScreen?
+    private var hidesInFullscreen: Bool { fullscreenScreen != nil && prefs.fullscreenBehavior == .hide }
+    var canCaptureAudio: Bool { prefs.capture && !demo && !hidesInFullscreen }
     private var applyingOverlayFrame = false
     private var presentationObserver: NSKeyValueObservation?
     private var fullscreenRefresh: DispatchWorkItem?
@@ -107,8 +111,6 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         makeSurfaces()
         updateOverlayPlacement()
         applyAppearance()
-        restartAudio()
-        updateArtworkMonitor()
         let workspace = NSWorkspace.shared.notificationCenter
         workspace.addObserver(self, selector: #selector(outputChanged), name: NSWorkspace.didWakeNotification, object: nil)
         for name in [NSWorkspace.didActivateApplicationNotification, NSWorkspace.activeSpaceDidChangeNotification] {
@@ -123,6 +125,9 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
             Task { @MainActor [weak self] in self?.refreshFullscreenContext() }
         }
         refreshFullscreenContext()
+        // 启动时先确认全屏，再决定是否打开音频采集。
+        if captureRevision == 0 { restartAudio() }
+        updateArtworkMonitor()
         if persists { _ = updates }
         if persists {
             capture.watchOutput { [weak self] in self?.outputChanged() }
@@ -229,14 +234,16 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         updateFullscreenContext(screen)
     }
 
-    /// 同步全屏策略；桌面贴边同时刷新菜单栏和 Dock 占用后的可用区域。
+    /// 同步显示器的全屏状态，更新布局，并在隐藏状态变化时重新判断是否采集。
     private func updateFullscreenContext(_ screen: NSScreen?) {
+        let wasHidden = hidesInFullscreen
         let changed = screen?.frame != fullscreenScreen?.frame
         fullscreenScreen = screen
         if changed || prefs.desktopPosition == .edge { updateOverlayPlacement() }
         guard changed else { return }
         applyAppearance()
         updateDockTracking()
+        if wasHidden != hidesInFullscreen { restartAudio() }
         tuneClock()
     }
 
@@ -345,18 +352,21 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         return true
     }
 
-    /// 切换实时音频、暂停和演示。修订号防止旧的启动结果覆盖新状态。
+    /// 根据当前模式启动或释放采集。修订号防止旧的启动结果覆盖新状态。
     @objc func restartAudio() {
         guard !quitting else { return }
+        routeRestart?.cancel()
+        routeRestart = nil
         captureRevision += 1
         let ticket = captureRevision
         pcm = nil
         lastAudible = -100
-        analyzer.reset(sampleRate: 48_000)
-        plot.needsDisplay = true
-        menuPlot?.needsDisplay = true
-        let active = prefs.capture && !demo
-        audioNote = demo ? "演示动画 · 无需音频权限" : active ? "正在检查系统音频" : "系统音频已暂停"
+        // 立即停止取样，淡出时继续绘制最后一帧。
+        if !hidesInFullscreen || overlayFade == 0 { clearSpectrum() }
+        let active = canCaptureAudio
+        if hidesInFullscreen { audioNote = "全屏隐藏 · 系统音频已暂停" }
+        else if demo { audioNote = "演示动画 · 无需音频权限" }
+        else { audioNote = active ? "正在检查系统音频" : "系统音频已暂停" }
         updateOverlayVisibility(now: ProcessInfo.processInfo.systemUptime)
         tuneClock()
         capture.setActive(active) { [weak self] result in
@@ -371,13 +381,18 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
                 self.audioNote = error.localizedDescription
             case .success(nil):
                 self.pcm = nil
-                self.analyzer.reset(sampleRate: 48_000)
-                self.plot.needsDisplay = true
-                self.menuPlot?.needsDisplay = true
+                self.clearSpectrum()
                 self.audioNote = "等待播放 · 采集已暂停"
                 self.tuneClock()
             }
         }
+    }
+
+    /// 清空两处共用的频谱帧，刷新浮窗及菜单栏。
+    private func clearSpectrum() {
+        analyzer.reset(sampleRate: 48_000)
+        plot.needsDisplay = true
+        menuPlot?.needsDisplay = true
     }
 
     private func heardRecently(at now: TimeInterval) -> Bool {
@@ -389,7 +404,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         let wasShowing = overlayWantsToShow
         let previousFade = overlayFade
         overlayWantsToShow = prefs.placement.showsWindow &&
-            !(fullscreenScreen != nil && prefs.fullscreenBehavior == .hide) &&
+            !hidesInFullscreen &&
             (!prefs.hidesWhenSilent || demo || heardRecently(at: now))
 
         if !prefs.placement.showsWindow {
@@ -405,6 +420,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         let eased = overlayFade * overlayFade * (3 - 2 * overlayFade)
         overlay.alphaValue = prefs.opacity * eased
         overlay.ignoresMouseEvents = prefs.clickThrough || !overlayWantsToShow || overlayFade == 0
+        if hidesInFullscreen, previousFade > 0, overlayFade == 0 { clearSpectrum() }
         let visible = overlayWantsToShow || overlayFade > 0
         if visible != overlay.isVisible {
             if visible { overlay.orderFrontRegardless() }
@@ -419,7 +435,8 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         let now = ProcessInfo.processInfo.systemUptime
         let fading = overlayFade != (overlayWantsToShow ? 1 : 0)
         let hasSurface = overlayWantsToShow || overlayFade > 0 || prefs.placement.showsMenu
-        let animating = fading || paletteFrom != nil || (hasSurface && (demo || (pcm != nil && heardRecently(at: now))))
+        let animating = fading || paletteFrom != nil ||
+            (hasSurface && !hidesInFullscreen && (demo || (pcm != nil && heardRecently(at: now))))
         let followsScreen = prefs.fps == Preferences.screenFPS
         if animating, followsScreen, let window = visibleSurfaceWindow() {
             guard displayClockWindow !== window else { return }
@@ -486,7 +503,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         let dt = now - lastTick
         lastTick = now
         var dirty = false
-        if demo {
+        if demo && !hidesInFullscreen {
             analyzer.frame.demo(at: now)
             dirty = true
         } else if let pcm {
@@ -521,7 +538,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
 
     /// 合并蓝牙或系统唤醒事件，等待新的输出设备完成切换。
     @objc private func outputChanged() {
-        guard !quitting, prefs.capture, !demo else { return }
+        guard !quitting, canCaptureAudio else { return }
         routeRestart?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.restartAudio() }
         routeRestart = work
@@ -652,7 +669,7 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         add("点击穿透", #selector(toggleClicks), state: prefs.clickThrough, to: menu)
         add("演示动画", #selector(toggleDemo), state: demo, to: menu)
         add(prefs.capture ? "暂停系统音频" : "恢复系统音频", #selector(toggleCapture), to: menu)
-        add("重连系统音频", #selector(restartAudio), to: menu).isEnabled = prefs.capture && !demo
+        add("重连系统音频", #selector(restartAudio), to: menu).isEnabled = canCaptureAudio
         menu.addItem(.separator())
         add("退出流光频谱", #selector(quit), key: "q", to: menu)
     }
@@ -956,7 +973,15 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
         guard legacy?.fullscreenBehavior == .unchanged, legacy?.fullscreenEdge == .bottom else { exit(1) }
         prefs.hidesWhenSilent = false
         prefs.fullscreenBehavior = .hide
+        guard let samples = PCMBuffer() else { exit(1) }
+        pcm = samples
+        let previousRevision = captureRevision
         updateFullscreenContext(screen)
+        outputChanged()
+        guard pcm == nil, prefs.capture, !canCaptureAudio, routeRestart == nil,
+              captureRevision == previousRevision + 1, audioNote == "全屏隐藏 · 系统音频已暂停" else {
+            fputs("UI smoke: fullscreen hide did not suspend audio capture\n", stderr); exit(1)
+        }
         try? await Task.sleep(for: .milliseconds(180))
         guard overlay.isVisible, overlay.alphaValue > 0, overlay.alphaValue < prefs.opacity else {
             fputs("UI smoke: fullscreen hide did not fade (visible \(overlay.isVisible), alpha \(overlay.alphaValue), fullscreen \(fullscreenScreen != nil))\n", stderr); exit(1)
@@ -966,6 +991,9 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
             fputs("UI smoke: fullscreen hide did not settle\n", stderr); exit(1)
         }
         prefs.fullscreenBehavior = .edge
+        guard captureRevision == previousRevision + 2, audioNote == "演示动画 · 无需音频权限" else {
+            fputs("UI smoke: leaving fullscreen hide did not refresh audio policy\n", stderr); exit(1)
+        }
         prefs.onTop = false
         for edge in ScreenEdge.allCases {
             prefs.fullscreenEdge = edge
@@ -997,8 +1025,16 @@ final class PulseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, N
                 fputs("UI smoke: fullscreen did not restore Dock tracking\n", stderr); exit(1)
             }
         }
+        prefs.fullscreenBehavior = .hide
+        updateFullscreenContext(screen)
+        let suspendedRevision = captureRevision
+        updateFullscreenContext(nil)
+        guard prefs.capture, captureRevision == suspendedRevision + 1,
+              audioNote == "演示动画 · 无需音频权限" else {
+            fputs("UI smoke: exiting full screen did not restore the audio policy\n", stderr); exit(1)
+        }
         prefs = oldPrefs
-        print("UI smoke: fullscreen fade, four edges, saved settings and Dock restoration passed")
+        print("UI smoke: fullscreen fade, capture suspension, four edges and layout restoration passed")
     }
 
     /// 暂停音频后仍能完成配色过渡，切歌时从当前颜色续接。

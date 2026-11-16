@@ -182,7 +182,7 @@ struct SettingsView: View {
                 }.pickerStyle(.segmented).labelsHidden().frame(width: 230)
                 Menu {
                     Button(model.prefs.capture ? "暂停系统音频" : "恢复系统音频") { model.prefs.capture.toggle() }
-                    Button("重连系统音频", action: model.restartAudio).disabled(model.demo || !model.prefs.capture)
+                    Button("重连系统音频", action: model.restartAudio).disabled(!model.canCaptureAudio)
                     Button("录音权限…", action: model.openAudioPermissions)
                 } label: {
                     Image(systemName: "ellipsis.circle").accessibilityLabel("音频选项")

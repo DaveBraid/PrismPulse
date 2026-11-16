@@ -4,33 +4,33 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>PrismPulse</title>
         <item>
-            <title>1.4.0</title>
-            <pubDate>Thu, 12 Nov 2026 12:49:16 +0800</pubDate>
-            <link>https://github.com/DaveBraid/PrismPulse/releases/tag/v1.4.0</link>
+            <title>1.4.1</title>
+            <pubDate>Tue, 17 Nov 2026 00:39:38 +0800</pubDate>
+            <link>https://github.com/DaveBraid/PrismPulse/releases/tag/v1.4.1</link>
             <sparkle:informationalUpdate>
                 <sparkle:belowVersion>102</sparkle:belowVersion>
             </sparkle:informationalUpdate>
-            <sparkle:version>140</sparkle:version>
-            <sparkle:shortVersionString>1.4.0</sparkle:shortVersionString>
+            <sparkle:version>141</sparkle:version>
+            <sparkle:shortVersionString>1.4.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.4</sparkle:minimumSystemVersion>
             <description sparkle:format="markdown"><![CDATA[## 中文
 
-- **封面辅色随音乐移动。** 使用「封面取色」时，辅色会随低、中、高频的强弱平滑移动。默认横向渐变下，低频偏左，中频居中，高频偏右。辅色在封面中占比越大，延展越宽。
-- **适用于浮窗、菜单栏和贴边显示。** 播放时复用现有频谱数据与渐变，切歌保留平滑过渡。
+- 在「应用全屏时」选择「淡出隐藏」，现在会同时停止系统音频采集，释放音频采集资源，让 PrismPulse 触发的录音标记消失。
+- 退出全屏后，如果系统音频原本开启，会在有声音播放时自动恢复采集。
 
-支持 macOS 14.4 及以上，包含 Apple Silicon 和 Intel 版本。已安装的用户可在菜单栏选择「检查更新…」。首次安装请下载 PrismPulse-macOS.zip，解压后将 App 拖入「应用程序」。
+支持 macOS 14.4 及以上，包含 Apple 芯片和 Intel 版本。可在菜单栏选择「检查更新…」安装。
 
 ## English
 
-- **Artwork accents move with the music.** In artwork color mode, the accent glides with the balance of bass, mids, and treble. With a horizontal gradient, bass pulls it left, mids bring it toward the center, and treble pulls it right. An accent that covers more of the artwork spans a wider area.
-- **Works in floating windows, the menu bar, and screen-edge layouts.** PrismPulse reuses the existing spectrum data and gradient during playback and blends smoothly between covers.
+- With Fade Out selected for full-screen apps, PrismPulse now stops capturing system audio and releases its capture session as the overlay fades. This removes the recording indicator triggered by PrismPulse.
+- On leaving full screen, PrismPulse resumes capture when playback is active if audio capture was enabled.
 
-Requires macOS 14.4 or later and supports Apple silicon and Intel. Choose Check for Updates from the PrismPulse menu to update. For a new installation, download PrismPulse-macOS.zip, unzip it, and move the app to Applications.
+Requires macOS 14.4 or later and supports Apple silicon and Intel. Choose Check for Updates from the PrismPulse menu to install.
 ]]></description>
-            <enclosure url="https://github.com/DaveBraid/PrismPulse/releases/download/v1.4.0/PrismPulse-macOS.zip" length="2933353" type="application/octet-stream" sparkle:edSignature="nePiKyyzqQUShLCVGpHEa1vevMt4vh/5gvEf/6tEp+g+fkXuMUmJfFdDviUTGCxbxoNv+bt4LeDJIU0aipr+CQ=="></enclosure>
+            <enclosure url="https://github.com/DaveBraid/PrismPulse/releases/download/v1.4.1/PrismPulse-macOS.zip" length="2938287" type="application/octet-stream" sparkle:edSignature="wGqLrkCrf9+N+9qYHZ5Bu3NoSNDXMhesynnUfgA4kwIN99wmyHANM3c2+G6eO+Njcnip7k+iSQ2CKrlDY0s3DA=="></enclosure>
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: 1Gqg2B0QGhxj9FQFAwUiIPCrZ7JPaM++ViEP3OyHTjaQSYuU2zVYdciRsxGbw94dfuxI0TbX7wO2MLVOblUbDQ==
-length: 2683
+edSignature: uhx0AOVSu/kruTQJQYxIJAJB/ps+aWRC2lFQD0Q48HxYnVUrXBSqbk/S9AwP4QWJehnCrmBd8/tcNebFBSmCDw==
+length: 2220
 -->
